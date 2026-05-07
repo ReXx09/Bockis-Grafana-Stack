@@ -44,6 +44,13 @@ services:
       - ./data/influxdb:/var/lib/influxdb2
       - ./data/influxdb-config:/etc/influxdb2
 
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
     logging:
       driver: json-file
       options:
@@ -63,7 +70,7 @@ services:
   #   Docker:     1860
   # ---------------------------------------------------------------------------
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.5.2
     container_name: grafana
     restart: unless-stopped
 
@@ -74,15 +81,20 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
-      # InfluxDB als vorkonfigurierte Datasource
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      # Werte fuer Grafana Datasource-Provisioning
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-home}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-homelab}
+      - INFLUXDB_TOKEN=${INFLUXDB_ADMIN_TOKEN}
 
     volumes:
       - ./data/grafana:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ../../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../grafana/dashboards:/var/lib/grafana/dashboards:ro
 
     depends_on:
-      - influxdb
+      influxdb:
+        condition: service_healthy
 
     logging:
       driver: json-file

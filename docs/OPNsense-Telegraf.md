@@ -2,6 +2,25 @@
 
 Anleitung zur Konfiguration des Telegraf-Agents auf OPNsense für InfluxDB 2.x.
 
+## Benoetige ich weitere Addons auf OPNsense?
+
+Kurzantwort: Fuer den Standardbetrieb brauchst du nur ein Addon.
+
+| Ziel | Addon auf OPNsense | Pflicht |
+|------|---------------------|---------|
+| Telegraf Metriken an InfluxDB senden | `os-telegraf` | Ja |
+| Block/Allow auf Weltkarte (via Syslog an Unraid + GeoIP in Telegraf auf Unraid) | keines zusaetzlich | Nein |
+
+Optional je nach Funktionsumfang:
+
+| Zusatzfunktion | Addon auf OPNsense | Hinweis |
+|---------------|---------------------|---------|
+| IDS/IPS Metriken und Events | `os-suricata` | Nur wenn IDS/IPS genutzt wird |
+| NetFlow/IPFIX Flows | `os-netflow` | Fuer Flow-Analysen, nicht Pflicht fuer Basis-Weltkarte |
+| Erweiterte Log-Weiterleitung | `os-syslog-ng` (optional) | Nur noetig bei komplexem Logging-Routing |
+
+Wichtig: Die GeoIP-Anreicherung fuer die Weltkarte passiert in diesem Projekt auf Unraid in Telegraf, nicht auf OPNsense.
+
 ## Plugin installieren
 
 1. OPNsense WebUI → **System → Firmware → Plugins**
@@ -124,3 +143,42 @@ telegraf --config /usr/local/etc/telegraf.conf --test | head -50
 ## Firewall-Regel prüfen
 
 OPNsense → Firewall → Regeln: Port 8086/TCP zur Unraid-IP muss erlaubt sein.
+
+---
+
+## Block/Allow auf Weltkarte (Grafana Geomap)
+
+Ja, das geht. Fuer eine Weltkarte brauchst du neben Telegraf auch GeoIP-Anreicherung der Quell-IP.
+
+### Zielbild
+
+1. OPNsense sendet Firewall-Logs (filterlog) per Syslog an Unraid
+2. Telegraf auf Unraid nimmt Syslog an
+3. Telegraf reichert externe Source-IPs mit GeoIP (Lat/Lon, Land) an
+4. InfluxDB speichert Felder wie action, src_ip, country, latitude, longitude
+5. Grafana Geomap zeigt block rot, pass/allow gruen
+
+### Wichtige Grenzen
+
+- Private RFC1918-Adressen sind nicht geolokalisierbar
+- Nicht jeder Logeintrag hat verwertbare Source-IP
+- "Komplett" im Sinne aller OPNsense-Subsysteme ist mit Telegraf allein nicht realistisch
+
+### Umsetzungsschritte
+
+1. OPNsense: System → Settings → Logging / Targets
+2. Remote Syslog Target auf Unraid setzen, z. B. udp 5514
+3. Nur Firewall-Logs (filterlog) aktivieren
+4. Telegraf auf Unraid um Syslog-Input erweitern
+5. GeoLite2-City Datenbank (mmdb) bereitstellen und in Telegraf einbinden
+6. In Grafana Geomap Panel erstellen und nach action aufteilen
+
+### Grafana Geomap Empfehlung
+
+- Query A: action = block, Farbe rot
+- Query B: action = pass oder allow, Farbe gruen
+- Punkte nach count aggregieren, z. B. pro Land oder pro Koordinate
+
+### Security-Hinweis
+
+- Fuer Telegraf immer einen eigenen Write-Token nutzen, nicht den Influx Admin-Token.

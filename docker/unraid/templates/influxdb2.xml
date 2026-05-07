@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Bocki-InfluxDB2</Name>
+  <Repository>influxdb:2.7</Repository>
+  <Registry>https://hub.docker.com/_/influxdb</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>InfluxDB 2.x fuer den Bockis-Grafana-Stack auf Unraid.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI>http://[IP]:[PORT:8086]</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/influxdata/branding/master/img/downloads/influxdata-logo--symbol--pool-alpha.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="WebUI Port" Target="8086" Default="8086" Mode="tcp" Description="InfluxDB HTTP API Port" Type="Port" Display="always" Required="true" Mask="false">8086</Config>
+
+  <Config Name="InfluxDB Data" Target="/var/lib/influxdb2" Default="/mnt/user/appdata/bockis-grafana-stack/influxdb" Mode="rw" Description="Persistente InfluxDB-Daten" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/influxdb</Config>
+  <Config Name="InfluxDB Config" Target="/etc/influxdb2" Default="/mnt/user/appdata/bockis-grafana-stack/influxdb-config" Mode="rw" Description="InfluxDB Konfigurationsdaten" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/influxdb-config</Config>
+
+  <Config Name="Init Mode" Target="DOCKER_INFLUXDB_INIT_MODE" Default="setup" Mode="" Description="Initialer Setup-Modus" Type="Variable" Display="always" Required="true" Mask="false">setup</Config>
+  <Config Name="Admin User" Target="DOCKER_INFLUXDB_INIT_USERNAME" Default="admin" Mode="" Description="InfluxDB Admin Benutzer" Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
+  <Config Name="Admin Passwort" Target="DOCKER_INFLUXDB_INIT_PASSWORD" Default="CHANGEME_sicheres_Passwort" Mode="" Description="InfluxDB Admin Passwort" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_sicheres_Passwort</Config>
+  <Config Name="Admin Token" Target="DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" Default="CHANGEME_openssl_rand_hex_32" Mode="" Description="InfluxDB Admin API Token" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_openssl_rand_hex_32</Config>
+  <Config Name="Organization" Target="DOCKER_INFLUXDB_INIT_ORG" Default="home" Mode="" Description="InfluxDB Organisation" Type="Variable" Display="always" Required="true" Mask="false">home</Config>
+  <Config Name="Bucket" Target="DOCKER_INFLUXDB_INIT_BUCKET" Default="homelab" Mode="" Description="Standard Bucket" Type="Variable" Display="always" Required="true" Mask="false">homelab</Config>
+  <Config Name="Retention" Target="DOCKER_INFLUXDB_INIT_RETENTION" Default="30d" Mode="" Description="Retention des Buckets" Type="Variable" Display="advanced" Required="false" Mask="false">30d</Config>
+</Container>

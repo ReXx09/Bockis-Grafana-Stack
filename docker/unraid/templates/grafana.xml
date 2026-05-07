@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Bocki-Grafana</Name>
+  <Repository>grafana/grafana:11.5.2</Repository>
+  <Registry>https://hub.docker.com/r/grafana/grafana</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>Grafana fuer den Bockis-Grafana-Stack auf Unraid, inkl. Datasource-Provisioning.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+  <TemplateURL/>
+  <Icon>https://grafana.com/static/assets/img/blog/mixed_styles.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Grafana WebUI Port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+
+  <Config Name="Grafana Data" Target="/var/lib/grafana" Default="/mnt/user/appdata/bockis-grafana-stack/grafana" Mode="rw" Description="Persistente Grafana-Daten" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/grafana</Config>
+  <Config Name="Provisioning" Target="/etc/grafana/provisioning" Default="/mnt/user/appdata/bockis-grafana-stack/provisioning" Mode="ro" Description="Datasource/Dashboard Provisioning" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/provisioning</Config>
+  <Config Name="Dashboards" Target="/var/lib/grafana/dashboards" Default="/mnt/user/appdata/bockis-grafana-stack/dashboards" Mode="ro" Description="Lokale Dashboard-JSONs" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/dashboards</Config>
+
+  <Config Name="Admin User" Target="GF_SECURITY_ADMIN_USER" Default="admin" Mode="" Description="Grafana Admin Benutzer" Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
+  <Config Name="Admin Passwort" Target="GF_SECURITY_ADMIN_PASSWORD" Default="CHANGEME_sicheres_Passwort" Mode="" Description="Grafana Admin Passwort" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_sicheres_Passwort</Config>
+  <Config Name="Disable Sign-Up" Target="GF_USERS_ALLOW_SIGN_UP" Default="false" Mode="" Description="Self Signup deaktivieren" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+
+  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://influxdb:8086" Mode="" Description="InfluxDB URL fuer Provisioning" Type="Variable" Display="always" Required="true" Mask="false">http://influxdb:8086</Config>
+  <Config Name="Influx Org" Target="INFLUXDB_ORG" Default="home" Mode="" Description="InfluxDB Organisation" Type="Variable" Display="always" Required="true" Mask="false">home</Config>
+  <Config Name="Influx Bucket" Target="INFLUXDB_BUCKET" Default="homelab" Mode="" Description="InfluxDB Bucket" Type="Variable" Display="always" Required="true" Mask="false">homelab</Config>
+  <Config Name="Influx Token" Target="INFLUXDB_TOKEN" Default="CHANGEME_openssl_rand_hex_32" Mode="" Description="InfluxDB Token fuer Datasource" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_openssl_rand_hex_32</Config>
+</Container>

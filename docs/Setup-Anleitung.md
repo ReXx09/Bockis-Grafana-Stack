@@ -17,6 +17,40 @@ Raspi (Nebenwohnsitz)          OPNsense (Hauptwohnsitz)
 
 ---
 
+## Alternative: Unraid Installation per XML-Templates
+
+Wenn du die Container direkt ueber Unraid anlegen willst, verwende diese Templates:
+
+- `docker/unraid/templates/influxdb2.xml`
+- `docker/unraid/templates/grafana.xml`
+- `docker/unraid/templates/telegraf.xml`
+
+### XML nach Unraid importieren
+
+1. Dateien auf den Unraid-Host kopieren nach `/boot/config/plugins/dockerMan/templates-user/`
+2. In Unraid: Docker → Add Container → Template auswaehlen
+
+Beispiel per Shell auf Unraid:
+
+```bash
+mkdir -p /boot/config/plugins/dockerMan/templates-user/
+cp /mnt/user/appdata/bockis-grafana-stack/docker/unraid/templates/*.xml /boot/config/plugins/dockerMan/templates-user/
+```
+
+### Reihenfolge in Unraid
+
+1. InfluxDB2 Template importieren und starten
+2. Grafana Template importieren und starten
+3. Telegraf Template importieren und starten
+
+### Wichtige Werte vor dem Start
+
+- alle `CHANGEME_*` Variablen ersetzen
+- in Grafana und Telegraf denselben Influx Token/Org/Bucket verwenden
+- Host-Pfade auf dein Unraid Appdata-Schema anpassen (Default zeigt auf `/mnt/user/appdata/bockis-grafana-stack/...`)
+
+---
+
 ## Schritt 1 — Unraid: Docker Stack starten
 
 ```bash
@@ -109,15 +143,17 @@ Kurzfassung:
 WebUI: `http://<UNRAID-IP>:3000`  
 Login: `admin` / `<GRAFANA_ADMIN_PASSWORD>`
 
-### Datasource hinzufügen
+### Datasource prüfen
 
-1. Configuration → Data Sources → Add data source → InfluxDB
-2. Query Language: **Flux**
-3. URL: `http://influxdb:8086`
-4. Organisation: `home`
-5. Token: `<INFLUXDB_ADMIN_TOKEN>`
-6. Default Bucket: `homelab`
-7. Save & Test
+Die InfluxDB-DataSource wird automatisch per Provisioning angelegt.
+
+1. Connections → Data Sources öffnen
+2. DataSource `InfluxDB` auswählen
+3. `Save & Test` ausführen
+
+Falls keine DataSource sichtbar ist:
+- prüfen, ob `grafana/provisioning/datasources/datasource.yml` vorhanden ist
+- Stack neu starten: `docker compose up -d --force-recreate`
 
 ### Dashboards importieren
 

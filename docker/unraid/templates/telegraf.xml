@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Bocki-Telegraf-Unraid</Name>
+  <Repository>telegraf:1.34</Repository>
+  <Registry>https://hub.docker.com/_/telegraf</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>Telegraf fuer Unraid Host- und Docker-Metriken in InfluxDB 2.x.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon>https://www.vectorlogo.zone/logos/influxdata/influxdata-icon.svg</Icon>
+  <ExtraParams/>
+  <PostArgs>--config /etc/telegraf/telegraf.conf</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="Telegraf Config" Target="/etc/telegraf/telegraf.conf" Default="/mnt/user/appdata/bockis-grafana-stack/telegraf/unraid/telegraf.conf" Mode="ro" Description="Pfad zur Telegraf Config" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/telegraf/unraid/telegraf.conf</Config>
+  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Docker Socket fuer Container-Metriken" Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="GeoIP Datenbank" Target="/etc/telegraf/geoip/GeoLite2-City.mmdb" Default="/mnt/user/appdata/bockis-grafana-stack/geoip/GeoLite2-City.mmdb" Mode="ro" Description="GeoIP MMDB fuer Weltkarte" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/bockis-grafana-stack/geoip/GeoLite2-City.mmdb</Config>
+
+  <Config Name="Syslog UDP Port" Target="5514" Default="5514" Mode="udp" Description="Syslog UDP Listener fuer OPNsense" Type="Port" Display="advanced" Required="false" Mask="false">5514</Config>
+  <Config Name="Syslog TCP Port" Target="5514" Default="5514" Mode="tcp" Description="Syslog TCP Listener fuer OPNsense" Type="Port" Display="advanced" Required="false" Mask="false">5514</Config>
+
+  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://influxdb:8086" Mode="" Description="InfluxDB URL" Type="Variable" Display="always" Required="true" Mask="false">http://influxdb:8086</Config>
+  <Config Name="Influx Org" Target="INFLUXDB_ORG" Default="home" Mode="" Description="InfluxDB Organisation" Type="Variable" Display="always" Required="true" Mask="false">home</Config>
+  <Config Name="Influx Bucket" Target="INFLUXDB_BUCKET" Default="homelab" Mode="" Description="InfluxDB Bucket" Type="Variable" Display="always" Required="true" Mask="false">homelab</Config>
+  <Config Name="Influx Token" Target="INFLUXDB_TOKEN" Default="CHANGEME_openssl_rand_hex_32" Mode="" Description="Write-Token fuer Telegraf" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_openssl_rand_hex_32</Config>
+</Container>
