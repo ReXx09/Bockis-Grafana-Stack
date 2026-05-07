@@ -1,0 +1,91 @@
+# =============================================================================
+# Bockis Grafana Stack — Unraid Docker Compose
+#
+# Stack:
+#   influxdb  → Zeitreihendatenbank (Port 8086)
+#   grafana   → Dashboard WebUI (Port 3000)
+#
+# Erststart:
+#   1. cp .env.example .env && nano .env  (Passwörter setzen)
+#   2. docker compose up -d
+#   3. InfluxDB WebUI: http://<unraid-ip>:8086
+#   4. Grafana WebUI:  http://<unraid-ip>:3000
+#   5. Telegraf auf Raspi + OPNsense konfigurieren (siehe telegraf/)
+#
+# Copyright (c) 2026 Bocki — MIT License
+# https://github.com/ReXx09/Bockis-Grafana-Stack
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # InfluxDB 2.x
+  # Zeitreihendatenbank — empfängt Metriken von Telegraf-Agenten
+  # WebUI: http://<unraid-ip>:8086
+  # ---------------------------------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+
+    ports:
+      - "${INFLUXDB_PORT:-8086}:8086"
+
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_ADMIN_USER:-admin}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-home}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-homelab}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-30d}
+
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb2
+      - ./data/influxdb-config:/etc/influxdb2
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Grafana
+  # Dashboard WebUI — visualisiert Metriken aus InfluxDB
+  # WebUI: http://<unraid-ip>:3000
+  #
+  # Empfohlene Dashboard-IDs zum Importieren:
+  #   OPNsense:   13386
+  #   Unraid:     7233
+  #   Raspi:      10578
+  #   WireGuard:  12177
+  #   Docker:     1860
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # InfluxDB als vorkonfigurierte Datasource
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
+    depends_on:
+      - influxdb
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

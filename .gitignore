@@ -1,0 +1,15 @@
+# Secrets und Zugangsdaten
+.env
+*.env
+
+# InfluxDB und Grafana Datenbankdaten
+docker/unraid/data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*~
