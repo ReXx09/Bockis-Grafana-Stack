@@ -1,0 +1,36 @@
+logging {
+  level = "info"
+}
+
+loki.source.syslog "opnsense" {
+  listener {
+    address       = "0.0.0.0:5514"
+    protocol      = "udp"
+    syslog_format = "rfc3164"
+    labels = {
+      source  = "opnsense",
+      service = "filterlog",
+    }
+  }
+
+  forward_to = [loki.process.filterlog.receiver]
+}
+
+loki.process "filterlog" {
+  stage.regex {
+    expression = "filterlog: [^,]*,[^,]*,[^,]*,[^,]*,(?P<interface>[^,]*),[^,]*,(?P<action>[^,]*),(?P<direction>[^,]*),[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,(?P<protocol>[^,]*),[^,]*,(?P<source_ip>[^,]*),(?P<destination_ip>[^,]*),(?P<source_port>[^,]*),(?P<destination_port>[^,]*)"
+  }
+  stage.labels {
+    values = { action = "action", direction = "direction", interface = "interface", protocol = "protocol" }
+  }
+  stage.structured_metadata {
+    values = { source_ip = "source_ip", destination_ip = "destination_ip", source_port = "source_port", destination_port = "destination_port" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = env("LOKI_URL")
+  }
+}

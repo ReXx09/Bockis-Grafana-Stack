@@ -29,7 +29,7 @@
   <Config Name="Syslog UDP Port" Target="5514" Default="5514" Mode="udp" Description="Syslog UDP Listener fuer OPNsense" Type="Port" Display="advanced" Required="false" Mask="false">5514</Config>
   <Config Name="Syslog TCP Port" Target="5514" Default="5514" Mode="tcp" Description="Syslog TCP Listener fuer OPNsense" Type="Port" Display="advanced" Required="false" Mask="false">5514</Config>
 
-  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://influxdb:8086" Mode="" Description="InfluxDB URL" Type="Variable" Display="always" Required="true" Mask="false">http://influxdb:8086</Config>
+  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://192.168.1.10:8086" Mode="" Description="InfluxDB URL" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.10:8086</Config>
   <Config Name="Influx Org" Target="INFLUXDB_ORG" Default="home" Mode="" Description="InfluxDB Organisation" Type="Variable" Display="always" Required="true" Mask="false">home</Config>
   <Config Name="Influx Bucket" Target="INFLUXDB_BUCKET" Default="homelab" Mode="" Description="InfluxDB Bucket" Type="Variable" Display="always" Required="true" Mask="false">homelab</Config>
   <Config Name="Influx Token" Target="INFLUXDB_TOKEN" Default="CHANGEME_openssl_rand_hex_32" Mode="" Description="Write-Token fuer Telegraf" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_openssl_rand_hex_32</Config>

@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>bocki-grafana-aio</Name>
+  <Repository>ghcr.io/rexx09/bockis-grafana-aio:0.1.0</Repository>
+  <Registry>https://ghcr.io</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>Ein zentraler Manager fuer Grafana, InfluxDB, Telegraf, Loki und Grafana Alloy.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI>http://[IP]:[PORT:8800]</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/ReXx09/Bockis-Grafana-Stack/main/docs/bocki-grafana-icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="Manager WebUI Port" Target="8800" Default="8800" Mode="tcp" Description="Port der zentralen AIO-WebUI" Type="Port" Display="always" Required="true" Mask="false">8800</Config>
+  <Config Name="AIO Appdata" Target="/data" Default="/mnt/user/appdata/bocki-grafana-aio" Mode="rw" Description="Persistente Konfiguration und Daten des AIO-Managers" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bocki-grafana-aio</Config>
+  <Config Name="GeoIP Datenbank (optional)" Target="/geoip" Default="/mnt/user/appdata/bocki-grafana-aio/geoip" Mode="ro" Description="Optionaler Ordner mit GeoLite2-City.mmdb; ohne Datei bleibt die Weltkarte ohne Laenderanreicherung" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/bocki-grafana-aio/geoip</Config>
+  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Erforderlich, damit der Manager die fuenf bekannten Dienste verwalten kann" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/docker.sock</Config>
+
+  <Config Name="Host Appdata Path" Target="AIO_HOST_DATA_DIR" Default="/mnt/user/appdata/bocki-grafana-aio" Mode="" Description="Urspruenglicher Unraid-Hostpfad; muss dem AIO-Appdata-Pfad entsprechen" Type="Variable" Display="advanced" Required="true" Mask="false">/mnt/user/appdata/bocki-grafana-aio</Config>
+  <Config Name="Grafana Port" Target="AIO_GRAFANA_PORT" Default="3000" Mode="" Description="Host-Port des intern erzeugten Grafana-Containers" Type="Variable" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="InfluxDB Port" Target="AIO_INFLUXDB_PORT" Default="8086" Mode="" Description="Host-Port des intern erzeugten InfluxDB-Containers" Type="Variable" Display="always" Required="true" Mask="false">8086</Config>
+  <Config Name="Syslog Port" Target="AIO_SYSLOG_PORT" Default="5514" Mode="" Description="Host-UDP-Port des intern erzeugten Alloy-Containers" Type="Variable" Display="always" Required="true" Mask="false">5514</Config>
+</Container>

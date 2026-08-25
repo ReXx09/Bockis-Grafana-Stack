@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Bocki-Alloy-Syslog</Name>
+  <Repository>grafana/alloy:v1.7.5</Repository>
+  <Registry>https://hub.docker.com/r/grafana/alloy</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>Empfaengt OPNsense Syslog und schreibt Firewall-Ereignisse nach Loki.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI>http://[IP]:[PORT:12345]</WebUI>
+  <TemplateURL/>
+  <Icon>https://grafana.com/static/assets/img/fav32.png</Icon>
+  <ExtraParams/>
+  <PostArgs>run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="Alloy WebUI Port" Target="12345" Default="12345" Mode="tcp" Description="Alloy Status und Konfiguration" Type="Port" Display="always" Required="true" Mask="false">12345</Config>
+  <Config Name="Syslog UDP Port" Target="5514" Default="5514" Mode="udp" Description="OPNsense Remote Syslog Port" Type="Port" Display="always" Required="true" Mask="false">5514</Config>
+  <Config Name="Alloy Konfiguration" Target="/etc/alloy/config.alloy" Default="/mnt/user/appdata/bockis-grafana-stack/logging/alloy-config.alloy" Mode="ro" Description="Alloy Konfigurationsdatei" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/logging/alloy-config.alloy</Config>
+  <Config Name="Loki Push URL" Target="LOKI_URL" Default="http://192.168.1.10:3100/loki/api/v1/push" Mode="" Description="Loki API URL mit Unraid-IP" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.10:3100/loki/api/v1/push</Config>
+</Container>

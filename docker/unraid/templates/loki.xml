@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Bocki-Loki</Name>
+  <Repository>grafana/loki:3.4.2</Repository>
+  <Registry>https://hub.docker.com/r/grafana/loki</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
+  <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
+  <Overview>Loki speichert OPNsense Firewall-Ereignisse fuer Grafana.</Overview>
+  <Category>Network:Management</Category>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon>https://grafana.com/static/assets/img/fav32.png</Icon>
+  <ExtraParams/>
+  <PostArgs>-config.file=/etc/loki/config.yml</PostArgs>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>docker</Requires>
+
+  <Config Name="Loki API Port" Target="3100" Default="3100" Mode="tcp" Description="Loki API fuer Grafana und Alloy" Type="Port" Display="always" Required="true" Mask="false">3100</Config>
+  <Config Name="Loki Daten" Target="/loki" Default="/mnt/user/appdata/bockis-grafana-stack/loki" Mode="rw" Description="Persistente Firewall-Logs" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/loki</Config>
+  <Config Name="Loki Konfiguration" Target="/etc/loki/config.yml" Default="/mnt/user/appdata/bockis-grafana-stack/logging/loki-config.yml" Mode="ro" Description="Loki Konfigurationsdatei" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/logging/loki-config.yml</Config>
+</Container>

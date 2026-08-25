@@ -1,0 +1,23 @@
+logging {
+  level = "info"
+}
+
+loki.source.syslog "opnsense" {
+  listener {
+    address       = "0.0.0.0:5514"
+    protocol      = "udp"
+    syslog_format = "rfc3164"
+    labels = {
+      source  = "opnsense",
+      service = "filterlog",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = env("LOKI_URL")
+  }
+}

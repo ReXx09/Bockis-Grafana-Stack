@@ -32,8 +32,9 @@
   <Config Name="Admin Passwort" Target="GF_SECURITY_ADMIN_PASSWORD" Default="CHANGEME_sicheres_Passwort" Mode="" Description="Grafana Admin Passwort" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_sicheres_Passwort</Config>
   <Config Name="Disable Sign-Up" Target="GF_USERS_ALLOW_SIGN_UP" Default="false" Mode="" Description="Self Signup deaktivieren" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
 
-  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://influxdb:8086" Mode="" Description="InfluxDB URL fuer Provisioning" Type="Variable" Display="always" Required="true" Mask="false">http://influxdb:8086</Config>
+  <Config Name="Influx URL" Target="INFLUXDB_URL" Default="http://192.168.1.10:8086" Mode="" Description="InfluxDB URL fuer Provisioning" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.10:8086</Config>
   <Config Name="Influx Org" Target="INFLUXDB_ORG" Default="home" Mode="" Description="InfluxDB Organisation" Type="Variable" Display="always" Required="true" Mask="false">home</Config>
   <Config Name="Influx Bucket" Target="INFLUXDB_BUCKET" Default="homelab" Mode="" Description="InfluxDB Bucket" Type="Variable" Display="always" Required="true" Mask="false">homelab</Config>
   <Config Name="Influx Token" Target="INFLUXDB_TOKEN" Default="CHANGEME_openssl_rand_hex_32" Mode="" Description="InfluxDB Token fuer Datasource" Type="Variable" Display="always" Required="true" Mask="true">CHANGEME_openssl_rand_hex_32</Config>
+  <Config Name="Loki URL" Target="LOKI_URL" Default="http://192.168.1.10:3100" Mode="" Description="Loki API URL mit Unraid-IP" Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.10:3100</Config>
 </Container>

@@ -13,3 +13,9 @@ datasources:
       tlsSkipVerify: false
     secureJsonData:
       token: ${INFLUXDB_TOKEN}
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: ${LOKI_URL}
+    editable: false
