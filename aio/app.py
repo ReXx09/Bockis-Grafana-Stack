@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import secrets
@@ -61,16 +62,37 @@ class Manager:
         if not self.config.get("configured"):
             raise ValueError("Bitte zuerst das Setup speichern")
         host_data_dir = Path(self.config.get("host_data_dir", os.getenv("AIO_HOST_DATA_DIR", "/mnt/user/appdata/bocki-grafana-aio")))
-        created = StackOrchestrator(self.data_dir, host_data_dir, self.docker).install(self.config)
+        try:
+            created = StackOrchestrator(self.data_dir, host_data_dir, self.docker).install(self.config)
+        except (DockerApiError, OSError, ValueError) as error:
+            self.config["last_error"] = str(error)
+            self.config_path.write_text(json.dumps(self.config, indent=2) + "\n", encoding="utf-8")
+            raise
+        self.config.pop("last_error", None)
+        self.config_path.write_text(json.dumps(self.config, indent=2) + "\n", encoding="utf-8")
         return {"status": "installed", "created": created}
+
+    def proxy_target(self, route: str) -> tuple[str, int, str] | None:
+        targets = {
+            "grafana": ("grafana", 3000),
+            "influxdb": ("influxdb", 8086),
+            "loki": ("loki", 3100),
+            "alloy": ("alloy", 12345),
+        }
+        parts = route.strip("/").split("/", 1)
+        target = targets.get(parts[0])
+        if not target:
+            return None
+        return target[0], target[1], "/" + (parts[1] if len(parts) == 2 else "")
 
     def state(self) -> dict[str, Any]:
         containers = self._containers_by_service()
         return {
             "configured": bool(self.config.get("configured")),
             "config": {key: value for key, value in self.config.items() if "token" not in key and "password" not in key},
+            "last_error": self.config.get("last_error"),
             "services": {
-                name: {"image": definition["image"], "status": containers.get(name, {}).get("status", "not-created")}
+                name: {"container": f"bocki-aio-{name}", "image": definition["image"], "status": containers.get(name, {}).get("status", "not-created")}
                 for name, definition in SERVICE_DEFINITIONS.items()
             },
         }
@@ -129,10 +151,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith(("/grafana", "/influxdb", "/loki", "/alloy")):
+            self._proxy("GET")
+            return
         self._send(HTTPStatus.NOT_FOUND, {"error": "Nicht gefunden"})
 
     def do_POST(self) -> None:  # noqa: N802
         try:
+            if self.path.startswith(("/grafana", "/influxdb", "/loki", "/alloy")):
+                self._proxy("POST")
+                return
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/setup":
@@ -153,6 +181,37 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError, DockerUnavailable, DockerApiError, OSError) as error:
             self._send(HTTPStatus.BAD_REQUEST, {"error": str(error)})
 
+    def do_PUT(self) -> None:  # noqa: N802
+        self._proxy("PUT")
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self._proxy("DELETE")
+
+    def _proxy(self, method: str) -> None:
+        route, _, query = self.path.partition("?")
+        target = self.manager.proxy_target(route)
+        if not target:
+            self._send(HTTPStatus.NOT_FOUND, {"error": "Unbekannter Dienst"})
+            return
+        hostname, port, path = target
+        body = self.rfile.read(int(self.headers.get("Content-Length", "0"))) if method in {"POST", "PUT", "DELETE"} else None
+        connection = http.client.HTTPConnection(hostname, port, timeout=10)
+        try:
+            connection.request(method, path + ("?" + query if query else ""), body=body, headers={"Content-Type": self.headers.get("Content-Type", "application/octet-stream")})
+            response = connection.getresponse()
+            payload = response.read()
+            self.send_response(response.status)
+            for key, value in response.getheaders():
+                if key.lower() not in {"connection", "content-length", "transfer-encoding"}:
+                    self.send_header(key, value)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (OSError, http.client.HTTPException) as error:
+            self._send(HTTPStatus.BAD_GATEWAY, {"error": f"Dienst nicht erreichbar: {error}"})
+        finally:
+            connection.close()
+
     @staticmethod
     def _validate_setup(payload: dict[str, Any]) -> None:
         required = ("grafana_admin_password", "influx_admin_password")
@@ -170,11 +229,11 @@ INDEX_HTML = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bocki Grafana AIO</title><style>
 :root{font-family:ui-sans-serif,system-ui,sans-serif;color:#17212b;background:#eef1ed}body{max-width:980px;margin:0 auto;padding:28px}header{border-bottom:1px solid #c9d1c8;margin-bottom:22px}h1{font-size:2rem;margin:0 0 8px;color:#174a4a}section{background:#fff;border:1px solid #d5ddd4;border-radius:8px;padding:20px;margin:14px 0;box-shadow:0 3px 12px #173b3b12}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}label{display:grid;gap:6px;font-size:.9rem}input{padding:10px;border:1px solid #bdc8be;border-radius:5px;font:inherit}button{background:#d85b35;color:#fff;border:0;border-radius:5px;padding:10px 14px;font:inherit;cursor:pointer}button:hover{background:#b94727}.service{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e7e1;padding:12px 0}.muted{color:#607067}#message{min-height:1.5em}</style></head>
-<body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p></header>
+<body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Manager-Updates werden in Unraid über <strong>Force Update</strong> am Container eingespielt.</p></header>
 <section><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" required></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" required></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
-<section><h2>Dienste</h2><div id="services"></div></section>
+<section><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><div class="grid"><a href="/grafana/" target="_blank" rel="noreferrer">Grafana</a><a href="/influxdb/" target="_blank" rel="noreferrer">InfluxDB</a><a href="/loki/ready" target="_blank" rel="noreferrer">Loki API</a><a href="/alloy/-/ready" target="_blank" rel="noreferrer">Alloy Status</a></div><div id="services"></div></section>
 <script>
-async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>`<div class="service"><span><strong>${name}</strong><br><small class="muted">${item.image}</small></span><span>${item.status}</span></div>`).join('')}
+async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>`<div class="service"><span><strong>${name}</strong><br><small class="muted">${item.container} &middot; ${item.image}</small></span><span>${item.status}</span></div>`).join('');if(data.last_error)document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error}
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Konfiguration gespeichert, Dienste werden erstellt...';const install=await fetch('/api/install',{method:'POST'});const result=await install.json();document.getElementById('message').textContent=result.error||`${result.created.length} Dienste erstellt.`;state()});state();
 </script></body></html>"""
 

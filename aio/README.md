@@ -9,3 +9,7 @@ python -m aio.app --bind 127.0.0.1 --port 8800 --data-dir .\aio-data
 ```
 
 Open `http://127.0.0.1:8800`. The Docker socket is optional for the initial setup UI; service actions report a clear error until the manager runs with `/var/run/docker.sock` mounted.
+
+## Manager aktualisieren
+
+Der Manager aktualisiert sich nicht selbst. Nach einem neuen GHCR-Image in Unraid unter **Docker** beim Container `bocki-grafana-aio` **Force Update** ausfuehren. Die Konfiguration und Daten bleiben im Appdata-Mount erhalten. Danach die WebUI neu laden und die Dienststatus pruefen.

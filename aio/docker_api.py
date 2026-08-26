@@ -63,6 +63,13 @@ class DockerClient:
         except DockerApiError:
             self.request("POST", "/networks/create", {"Name": name, "Driver": "bridge"})
 
+    def connect_network(self, network: str, container: str) -> None:
+        self.request(
+            "POST",
+            f"/networks/{quote(network, safe='')}/connect",
+            {"Container": container},
+        )
+
     def create_container(self, name: str, spec: dict) -> None:
         self.request("POST", f"/containers/create?name={quote(name, safe='')}", spec)
 

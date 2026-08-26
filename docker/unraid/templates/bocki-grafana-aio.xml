@@ -24,6 +24,7 @@
 
   <Config Name="Manager WebUI Port" Target="8800" Default="8800" Mode="tcp" Description="Port der zentralen AIO-WebUI" Type="Port" Display="always" Required="true" Mask="false">8800</Config>
   <Config Name="AIO Appdata" Target="/data" Default="/mnt/user/appdata/bocki-grafana-aio" Mode="rw" Description="Persistente Konfiguration und Daten des AIO-Managers" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bocki-grafana-aio</Config>
+  <Config Name="Host Appdata Zugriff" Target="/mnt/user/appdata/bocki-grafana-aio" Default="/mnt/user/appdata/bocki-grafana-aio" Mode="rw" Description="Gleicher Hostpfad wie AIO Appdata; erforderlich fuer generierte Konfigurationen der Fachcontainer" Type="Path" Display="advanced" Required="true" Mask="false">/mnt/user/appdata/bocki-grafana-aio</Config>
   <Config Name="GeoIP Datenbank (optional)" Target="/geoip" Default="/mnt/user/appdata/bocki-grafana-aio/geoip" Mode="ro" Description="Optionaler Ordner mit GeoLite2-City.mmdb; ohne Datei bleibt die Weltkarte ohne Laenderanreicherung" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/bocki-grafana-aio/geoip</Config>
   <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Erforderlich, damit der Manager die fuenf bekannten Dienste verwalten kann" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/docker.sock</Config>
 

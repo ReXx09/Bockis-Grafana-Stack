@@ -23,6 +23,10 @@ class StackOrchestrator:
     def provision_files(self, config: dict[str, Any]) -> None:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.host_generated_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("influxdb", "influxdb-config", "grafana", "loki"):
+            directory = self.host_data_dir / name
+            directory.mkdir(parents=True, exist_ok=True)
+            directory.chmod(0o777)
         files = {
             "loki-config.yml": LOKI_CONFIG,
             "alloy-config.alloy": ALLOY_CONFIG,
@@ -38,6 +42,11 @@ class StackOrchestrator:
     def install(self, config: dict[str, Any]) -> list[str]:
         self.provision_files(config)
         self.docker.ensure_network(NETWORK_NAME)
+        manager_name = config.get("manager_container_name", "bocki-grafana-aio")
+        try:
+            self.docker.connect_network(NETWORK_NAME, manager_name)
+        except Exception:
+            pass
         created = []
         for service, definition in SERVICE_DEFINITIONS.items():
             name = f"bocki-aio-{service}"
@@ -80,6 +89,8 @@ class StackOrchestrator:
                 f"GF_SECURITY_ADMIN_USER={config['grafana_admin_user']}",
                 f"GF_SECURITY_ADMIN_PASSWORD={config['grafana_admin_password']}",
                 "GF_USERS_ALLOW_SIGN_UP=false",
+                "GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/",
+                "GF_SERVER_SERVE_FROM_SUB_PATH=true",
             ]
             add_port(ports, exposed, 3000, config.get("grafana_port", 3000), "tcp")
         elif service == "telegraf":
@@ -97,6 +108,8 @@ class StackOrchestrator:
             "HostConfig": {"Binds": binds, "RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": ports, "NetworkMode": NETWORK_NAME},
             "NetworkingConfig": {"EndpointsConfig": {NETWORK_NAME: {}}},
         }
+        if service == "telegraf":
+            spec["User"] = "0"
         healthcheck = SERVICE_DEFINITIONS[service].get("healthcheck")
         if healthcheck:
             spec["Healthcheck"] = {"Test": healthcheck, "Interval": 30_000_000_000, "Timeout": 10_000_000_000, "Retries": 5, "StartPeriod": 20_000_000_000}
