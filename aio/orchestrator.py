@@ -98,9 +98,11 @@ class StackOrchestrator:
             environment += [f"INFLUX_TOKEN={config['influx_admin_token']}", f"INFLUX_ORG={config['organization']}", f"INFLUX_BUCKET={config['bucket']}"]
         elif service == "loki":
             binds += [f"{host / 'loki'}:/loki", f"{self.host_generated_dir / 'loki-config.yml'}:/etc/loki/config.yml:ro"]
+            add_port(ports, exposed, 3100, config.get("loki_port", 3100), "tcp")
         elif service == "alloy":
             binds += [f"{self.host_generated_dir / 'alloy-config.alloy'}:/etc/alloy/config.alloy:ro"]
             add_port(ports, exposed, 5514, config.get("syslog_port", 5514), "udp")
+            add_port(ports, exposed, 12345, config.get("alloy_port", 12345), "tcp")
 
         spec = {
             "Image": image,

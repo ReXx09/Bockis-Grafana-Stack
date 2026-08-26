@@ -28,6 +28,9 @@ DEFAULT_CONFIG = {
     "host_data_dir": os.getenv("AIO_HOST_DATA_DIR", "/mnt/user/appdata/bocki-grafana-aio"),
     "grafana_port": int(os.getenv("AIO_GRAFANA_PORT", "3000")),
     "influxdb_port": int(os.getenv("AIO_INFLUXDB_PORT", "8086")),
+    "loki_port": int(os.getenv("AIO_LOKI_PORT", "3100")),
+    "alloy_port": int(os.getenv("AIO_ALLOY_PORT", "12345")),
+    "proxy_host": os.getenv("AIO_PROXY_HOST", "172.17.0.1"),
     "syslog_port": int(os.getenv("AIO_SYSLOG_PORT", "5514")),
 }
 
@@ -89,11 +92,12 @@ class Manager:
         return {"status": "installed", "created": created}
 
     def proxy_target(self, route: str) -> tuple[str, int, str] | None:
+        proxy_host = self.config.get("proxy_host", "172.17.0.1")
         targets = {
-            "grafana": ("bocki-aio-grafana", 3000),
-            "influxdb": ("bocki-aio-influxdb", 8086),
-            "loki": ("bocki-aio-loki", 3100),
-            "alloy": ("bocki-aio-alloy", 12345),
+            "grafana": (proxy_host, int(self.config.get("grafana_port", 3000))),
+            "influxdb": (proxy_host, int(self.config.get("influxdb_port", 8086))),
+            "loki": (proxy_host, 3100),
+            "alloy": (proxy_host, 12345),
         }
         parts = route.strip("/").split("/", 1)
         target = targets.get(parts[0])

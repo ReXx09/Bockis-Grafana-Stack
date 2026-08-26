@@ -31,5 +31,8 @@
   <Config Name="Host Appdata Path" Target="AIO_HOST_DATA_DIR" Default="/mnt/user/appdata/bocki-grafana-aio" Mode="" Description="Urspruenglicher Unraid-Hostpfad; muss dem AIO-Appdata-Pfad entsprechen" Type="Variable" Display="advanced" Required="true" Mask="false">/mnt/user/appdata/bocki-grafana-aio</Config>
   <Config Name="Grafana Port" Target="AIO_GRAFANA_PORT" Default="3000" Mode="" Description="Host-Port des intern erzeugten Grafana-Containers" Type="Variable" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="InfluxDB Port" Target="AIO_INFLUXDB_PORT" Default="8086" Mode="" Description="Host-Port des intern erzeugten InfluxDB-Containers" Type="Variable" Display="always" Required="true" Mask="false">8086</Config>
+  <Config Name="Loki Port" Target="AIO_LOKI_PORT" Default="3100" Mode="" Description="Host-Port der Loki-HTTP-API" Type="Variable" Display="advanced" Required="true" Mask="false">3100</Config>
+  <Config Name="Alloy HTTP Port" Target="AIO_ALLOY_PORT" Default="12345" Mode="" Description="Host-Port der Alloy-Statusseite" Type="Variable" Display="advanced" Required="true" Mask="false">12345</Config>
+  <Config Name="Docker Gateway fuer Proxy" Target="AIO_PROXY_HOST" Default="172.17.0.1" Mode="" Description="Docker-Bridge-Gateway des Unraid-Hosts fuer die zentrale Dienstweiterleitung" Type="Variable" Display="advanced" Required="true" Mask="false">172.17.0.1</Config>
   <Config Name="Syslog Port" Target="AIO_SYSLOG_PORT" Default="5514" Mode="" Description="Host-UDP-Port des intern erzeugten Alloy-Containers" Type="Variable" Display="always" Required="true" Mask="false">5514</Config>
 </Container>
