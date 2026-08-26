@@ -48,6 +48,7 @@ class Manager:
         self.config_path = data_dir / "config.json"
         self.config = read_json(self.config_path, DEFAULT_CONFIG)
         self.docker = docker or DockerClient()
+        self.docker_error: str | None = None
 
     def save_config(self, values: dict[str, Any]) -> None:
         config = dict(DEFAULT_CONFIG)
@@ -91,6 +92,7 @@ class Manager:
             "configured": bool(self.config.get("configured")),
             "config": {key: value for key, value in self.config.items() if "token" not in key and "password" not in key},
             "last_error": self.config.get("last_error"),
+            "docker_error": self.docker_error,
             "services": {
                 name: {"container": f"bocki-aio-{name}", "image": definition["image"], "status": containers.get(name, {}).get("status", "not-created")}
                 for name, definition in SERVICE_DEFINITIONS.items()
@@ -99,15 +101,20 @@ class Manager:
 
     def _containers_by_service(self) -> dict[str, dict[str, Any]]:
         if not Path(self.docker.socket_path).exists():
+            self.docker_error = "Docker-Socket nicht gefunden: /var/run/docker.sock"
             return {}
         try:
             containers = self.docker.containers()
-        except (OSError, DockerApiError, ValueError):
+        except (OSError, DockerApiError, ValueError) as error:
+            self.docker_error = str(error)
             return {}
+        self.docker_error = None
         result = {}
         for container in containers:
             names = container.get("Names", [])
-            name = next((item.lstrip("/") for item in names if item.lstrip("/").startswith("bocki-aio-")), "")
+            if not isinstance(names, list):
+                continue
+            name = next((str(item).lstrip("/") for item in names if str(item).lstrip("/").startswith("bocki-aio-")), "")
             service = name.removeprefix("bocki-aio-")
             if service in SERVICE_DEFINITIONS:
                 result[service] = {"status": container.get("Status", "unknown"), "id": container.get("Id", "")}
@@ -233,7 +240,7 @@ INDEX_HTML = """<!doctype html>
 <section><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" required></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" required></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
 <section><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><div class="grid"><a href="/grafana/" target="_blank" rel="noreferrer">Grafana</a><a href="/influxdb/" target="_blank" rel="noreferrer">InfluxDB</a><a href="/loki/ready" target="_blank" rel="noreferrer">Loki API</a><a href="/alloy/-/ready" target="_blank" rel="noreferrer">Alloy Status</a></div><div id="services"></div></section>
 <script>
-async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>`<div class="service"><span><strong>${name}</strong><br><small class="muted">${item.container} &middot; ${item.image}</small></span><span>${item.status}</span></div>`).join('');if(data.last_error)document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error}
+async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>`<div class="service"><span><strong>${name}</strong><br><small class="muted">${item.container} &middot; ${item.image}</small></span><span>${item.status}</span></div>`).join('');if(data.docker_error)document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;else if(data.last_error)document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error}
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Konfiguration gespeichert, Dienste werden erstellt...';const install=await fetch('/api/install',{method:'POST'});const result=await install.json();document.getElementById('message').textContent=result.error||`${result.created.length} Dienste erstellt.`;state()});state();
 </script></body></html>"""
 
