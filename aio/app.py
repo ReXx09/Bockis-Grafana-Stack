@@ -16,6 +16,8 @@ from .docker_api import DockerApiError, DockerClient
 from .orchestrator import StackOrchestrator
 from .services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
 
+MONITORING_NETWORK = "bocki-monitoring"
+
 DEFAULT_CONFIG = {
     "configured": False,
     "organization": "home",
@@ -49,6 +51,19 @@ class Manager:
         self.config = read_json(self.config_path, DEFAULT_CONFIG)
         self.docker = docker or DockerClient()
         self.docker_error: str | None = None
+        self._connect_monitoring_network()
+
+    def _connect_monitoring_network(self) -> None:
+        if not Path(self.docker.socket_path).exists():
+            self.docker_error = "Docker-Socket nicht gefunden: /var/run/docker.sock"
+            return
+        try:
+            if not hasattr(self.docker, "connect_network"):
+                return
+            self.docker.ensure_network(MONITORING_NETWORK)
+            self.docker.connect_network(MONITORING_NETWORK, "bocki-grafana-aio")
+        except (OSError, DockerApiError, ValueError) as error:
+            self.docker_error = str(error)
 
     def save_config(self, values: dict[str, Any]) -> None:
         config = dict(DEFAULT_CONFIG)
@@ -75,10 +90,10 @@ class Manager:
 
     def proxy_target(self, route: str) -> tuple[str, int, str] | None:
         targets = {
-            "grafana": ("grafana", 3000),
-            "influxdb": ("influxdb", 8086),
-            "loki": ("loki", 3100),
-            "alloy": ("alloy", 12345),
+            "grafana": ("bocki-aio-grafana", 3000),
+            "influxdb": ("bocki-aio-influxdb", 8086),
+            "loki": ("bocki-aio-loki", 3100),
+            "alloy": ("bocki-aio-alloy", 12345),
         }
         parts = route.strip("/").split("/", 1)
         target = targets.get(parts[0])

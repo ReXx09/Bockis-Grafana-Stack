@@ -106,7 +106,7 @@ class StackOrchestrator:
             "Image": image,
             "Env": environment,
             "HostConfig": {"Binds": binds, "RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": ports, "NetworkMode": NETWORK_NAME},
-            "NetworkingConfig": {"EndpointsConfig": {NETWORK_NAME: {}}},
+            "NetworkingConfig": {"EndpointsConfig": {NETWORK_NAME: {"Aliases": [service]}}},
         }
         if service == "telegraf":
             spec["User"] = "0"
