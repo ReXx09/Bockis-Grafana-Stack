@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Schritt-fuer-Schritt-Anleitung fuer Bocki Grafana AIO auf Unraid">
+  <title>Bocki Grafana AIO &middot; Unraid-Anleitung</title>
+  <style>
+    :root {
+      --ink: #17252b;
+      --muted: #5f6f73;
+      --paper: #f4f1e9;
+      --panel: #fffdf8;
+      --teal: #155e63;
+      --teal-light: #dcefee;
+      --orange: #d8673d;
+      --line: #d8d8c9;
+      --warning: #fff0d5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 16px/1.6 Georgia, 'Times New Roman', serif;
+    }
+    .wrap { width: min(1060px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 64px 0 48px; border-bottom: 1px solid var(--line); }
+    .eyebrow { color: var(--orange); font: 700 .78rem/1.2 Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3 { font-family: Georgia, 'Times New Roman', serif; line-height: 1.15; }
+    h1 { max-width: 760px; margin: 12px 0 18px; font-size: clamp(2.4rem, 6vw, 5rem); font-weight: 500; }
+    h2 { margin: 0 0 14px; color: var(--teal); font-size: 2rem; }
+    h3 { margin: 0 0 8px; font-size: 1.25rem; }
+    .intro { max-width: 700px; color: var(--muted); font-size: 1.15rem; }
+    main { padding: 38px 0 70px; }
+    .notice { margin: 0 0 34px; padding: 18px 20px; border-left: 5px solid var(--orange); background: var(--warning); }
+    .steps { display: grid; gap: 18px; }
+    .step { display: grid; grid-template-columns: 62px 1fr; gap: 18px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+    .number { display: grid; place-items: center; width: 48px; height: 48px; color: white; background: var(--teal); border-radius: 50%; font: 700 1.2rem Arial, sans-serif; }
+    .step p { margin: 8px 0; }
+    code, pre { font-family: Consolas, 'Courier New', monospace; }
+    code { padding: 2px 5px; background: #edf0eb; border-radius: 3px; font-size: .9em; }
+    pre { overflow-x: auto; margin: 14px 0; padding: 15px; color: #eaf6f2; background: #193438; border-radius: 5px; font-size: .88rem; }
+    ul, ol { padding-left: 1.3rem; }
+    .check { margin-top: 14px; padding: 12px 14px; background: var(--teal-light); }
+    .check strong { color: var(--teal); }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin: 18px 0 34px; }
+    .card { padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+    .card h3 { color: var(--teal); }
+    footer { padding: 24px 0 45px; color: var(--muted); border-top: 1px solid var(--line); font-size: .92rem; }
+    @media (max-width: 680px) {
+      header { padding-top: 38px; }
+      .step { grid-template-columns: 1fr; gap: 10px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="eyebrow">Bocki Grafana AIO</div>
+      <h1>Monitoring auf Unraid, Schritt f&uuml;r Schritt.</h1>
+      <p class="intro">Diese Anleitung f&uuml;hrt durch die Installation des zentralen AIO-Managers. Der Manager verwaltet InfluxDB, Grafana, Telegraf, Loki und Grafana Alloy als einen gemeinsamen Monitoring-Stack.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="notice"><strong>Entwicklungsstand:</strong> Das AIO-XML und der Manager befinden sich noch in der Entwicklung. Vor dem produktiven Einsatz zuerst ein Backup erstellen und das Image in einer Testinstanz pr&uuml;fen.</div>
+
+    <section class="grid" aria-label="Voraussetzungen">
+      <article class="card"><h3>Du brauchst</h3><ul><li>Unraid mit aktiviertem Docker-Dienst</li><li>eine freie TCP-Verbindung f&uuml;r Port 8800</li><li>freie Ports 3000, 8086 und UDP 5514</li><li>ausreichend Speicherplatz f&uuml;r Appdata und Logs</li></ul></article>
+      <article class="card"><h3>Die f&uuml;nf Dienste</h3><ul><li>Grafana 11.5.2</li><li>InfluxDB 2.7</li><li>Telegraf 1.34</li><li>Loki 3.4.2</li><li>Grafana Alloy 1.7.5</li></ul></article>
+    </section>
+
+    <section class="steps" aria-label="Installationsschritte">
+      <article class="step"><div class="number">1</div><div><h2>Arbeitsbereich vorbereiten</h2><p>Lege in Unraid den Appdata-Ordner an oder verwende den Standardpfad:</p><pre>/mnt/user/appdata/bocki-grafana-aio</pre><p>Wenn du einen anderen Pfad verwendest, muss derselbe Hostpfad sp&auml;ter bei <code>AIO Appdata</code> und <code>Host Appdata Path</code> eingetragen werden.</p><div class="check"><strong>Pr&uuml;fen:</strong> Der Ordner ist beschreibbar und hat gen&uuml;gend freien Speicher.</div></div></article>
+
+      <article class="step"><div class="number">2</div><div><h2>AIO-XML importieren</h2><p>In Unraid:</p><ol><li>Docker &ouml;ffnen.</li><li><strong>Add Container</strong> ausw&auml;hlen.</li><li>Auf <strong>Template repositories</strong> beziehungsweise XML-Import wechseln.</li><li>Die Datei <code>docker/unraid/templates/bocki-grafana-aio.xml</code> aus diesem Projekt verwenden.</li></ol><p>Das Template legt nur den Manager-Container an. Die f&uuml;nf Monitoring-Dienste werden anschlie&szlig;end durch die AIO-WebUI erstellt.</p><div class="check"><strong>Pr&uuml;fen:</strong> In Unraid ist nur der Container <code>bocki-grafana-aio</code> angelegt.</div></div></article>
+
+      <article class="step"><div class="number">3</div><div><h2>Pfade und Ports setzen</h2><p>Kontrolliere die Standardwerte:</p><ul><li><code>Manager WebUI Port</code>: <code>8800</code></li><li><code>AIO Appdata</code>: <code>/mnt/user/appdata/bocki-grafana-aio</code></li><li><code>Grafana Port</code>: <code>3000</code></li><li><code>InfluxDB Port</code>: <code>8086</code></li><li><code>Syslog Port</code>: <code>5514/UDP</code></li><li><code>Docker Socket</code>: <code>/var/run/docker.sock</code> als read-only Mount</li></ul><p>Der Docker-Socket ist notwendig, damit der Manager die f&uuml;nf festgelegten Container erzeugen und verwalten kann.</p></div></article>
+
+      <article class="step"><div class="number">4</div><div><h2>Image ver&ouml;ffentlichen und pr&uuml;fen</h2><p>Das Template verwendet derzeit:</p><pre>ghcr.io/rexx09/bockis-grafana-aio:0.1.0</pre><p>Nach jedem Push auf den Branch <code>master</code> baut der Workflow <code>.github/workflows/publish-aio.yml</code> dieses Image automatisch. Unter GitHub bei <strong>Packages</strong> muss das Paket anschlie&szlig;end auf <strong>Public</strong> gestellt werden. Erst dann kann Unraid es ohne Anmeldung laden.</p><p>Falls der Pull mit <code>denied</code> oder <code>unauthorized</code> endet, existiert das Image noch nicht &ouml;ffentlich oder das Paket ist privat. Der Fehler <code>No such container</code> ist danach nur eine Folge des fehlgeschlagenen Pulls.</p><div class="check"><strong>Pr&uuml;fen:</strong> Der Manager-Container startet und zeigt auf Port 8800 eine Webseite.</div></div></article>
+
+      <article class="step"><div class="number">5</div><div><h2>Setup-Assistent ausf&uuml;llen</h2><p>&Ouml;ffne im Browser:</p><pre>http://UNRAID-IP:8800</pre><p>Gib dort mindestens ein:</p><ul><li>Grafana-Administrator und Passwort</li><li>InfluxDB-Administrator und Passwort</li><li>Organisation, zum Beispiel <code>home</code></li><li>Bucket, zum Beispiel <code>homelab</code></li><li>Retention, zum Beispiel <code>30d</code></li></ul><p>Der Manager speichert die Konfiguration unter <code>/data/config.json</code> und erzeugt den InfluxDB-Admin-Token automatisch.</p><div class="check"><strong>Pr&uuml;fen:</strong> Nach dem Speichern erscheint keine Fehlermeldung und die Konfiguration bleibt nach einem Neustart erhalten.</div></div></article>
+
+      <article class="step"><div class="number">6</div><div><h2>Stack installieren</h2><p>Nach dem Setup startet die WebUI die Stack-Installation. Dabei werden das Docker-Netzwerk <code>bocki-monitoring</code> und diese Container angelegt:</p><pre>bocki-aio-influxdb
+bocki-aio-grafana
+bocki-aio-telegraf
+bocki-aio-loki
+bocki-aio-alloy</pre><p>Die Konfigurationsdateien und Daten liegen dauerhaft unter deinem AIO-Appdata-Pfad. Bereits vorhandene <code>bocki-aio-*</code>-Container werden bei einem erneuten Installationslauf nicht gel&ouml;scht.</p><div class="check"><strong>Pr&uuml;fen:</strong> Alle f&uuml;nf Dienste erscheinen in der Statusanzeige; InfluxDB, Grafana, Loki und Alloy werden healthy.</div></div></article>
+
+      <article class="step"><div class="number">7</div><div><h2>Grafana &ouml;ffnen</h2><p>Rufe Grafana auf:</p><pre>http://UNRAID-IP:3000</pre><p>InfluxDB und Loki werden automatisch als Datasources provisioniert. Das Dashboard <strong>OPNsense Firewall</strong> enth&auml;lt Pass-/Block-Z&auml;hler, Zeitreihen, Loki-Ereignisse und eine Geomap.</p><div class="check"><strong>Pr&uuml;fen:</strong> Beide Datasources sind erreichbar und das Firewall-Dashboard wird angezeigt.</div></div></article>
+
+      <article class="step"><div class="number">8</div><div><h2>OPNsense verbinden</h2><p>In OPNsense unter <strong>System &rarr; Settings &rarr; Logging &rarr; Remote</strong> einen Remote-Syslog-Zielhost eintragen:</p><ul><li>Zielhost: IP-Adresse deines Unraid-Servers</li><li>Transport: UDP</li><li>Port: <code>5514</code></li><li>Facility/Quelle: Firewall beziehungsweise filterlog</li></ul><p>Alloy empf&auml;ngt die Meldungen, strukturiert Aktion, Interface, Richtung und Protokoll und leitet sie an Loki weiter.</p><div class="check"><strong>Pr&uuml;fen:</strong> In Grafana erscheinen neue filterlog-Ereignisse in der Loki-Tabelle.</div></div></article>
+
+      <article class="step"><div class="number">9</div><div><h2>GeoIP f&uuml;r die Weltkarte</h2><p>Lege eine rechtm&auml;&szlig;ig bezogene GeoLite2-City-Datenbank ab unter:</p><pre>/mnt/user/appdata/bocki-grafana-aio/geoip/GeoLite2-City.mmdb</pre><p>Der Mount ist optional. Ohne GeoIP funktionieren Logs und Z&auml;hler weiter, aber die L&auml;nderanreicherung und die Weltkarte bleiben unvollst&auml;ndig.</p><div class="check"><strong>Pr&uuml;fen:</strong> Die Datenbank stammt aus einer zul&auml;ssigen Quelle und wird read-only in den Manager eingebunden.</div></div></article>
+
+      <article class="step"><div class="number">10</div><div><h2>Betrieb und Updates</h2><p>Nutze die AIO-WebUI f&uuml;r Status und Dienstaktionen. Vor Updates:</p><ol><li>Appdata-Backup erstellen.</li><li>Logs und Healthstatus pr&uuml;fen.</li><li>Nur ein Dienst-Update nach dem anderen starten.</li><li>Grafana, InfluxDB und Loki nach dem Update auf Erreichbarkeit pr&uuml;fen.</li></ol><p>Ein produktives Rollback ist noch nicht Bestandteil des aktuellen Entwicklungsstands. Deshalb vorerst das Appdata-Backup behalten.</p></div></article>
+    </section>
+
+    <section class="grid" aria-label="Alternativer Betrieb">
+      <article class="card"><h3>Raspberry-Pi-Fallback</h3><p>F&uuml;r den Raspberry Pi bleibt <code>docker/raspi/docker-compose.yml</code> der alternative Weg. Die zugeh&ouml;rige <code>.env.example</code> kopieren, Geheimnisse ersetzen und die Compose-Datei im Ordner <code>docker/raspi</code> starten.</p></article>
+      <article class="card"><h3>Fehler melden</h3><p>Bei Problemen immer den exakten Fehlertext, den betroffenen Schritt und den Status der f&uuml;nf Container notieren. Keine Passw&ouml;rter oder Tokens in Logs, Screenshots oder Issues ver&ouml;ffentlichen.</p></article>
+    </section>
+  </main>
+
+  <footer><div class="wrap">Bocki Grafana AIO &middot; Unraid-Anleitung &middot; Stand: 26.08.2026</div></footer>
+</body>
+</html>
