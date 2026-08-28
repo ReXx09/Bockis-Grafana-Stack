@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from aio.app import Handler, Manager
+from aio.docker_api import DockerApiError
 from aio.filterlog import FilterlogParseError, parse_filterlog
 from aio.services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
 
@@ -36,7 +37,9 @@ class ManagerTests(unittest.TestCase):
             self.calls.append(("start", name))
 
         def inspect(self, name):
-            return {"NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}}
+            if name != "bocki-aio-grafana":
+                raise DockerApiError("no such container")
+            return {"Id": "abc123", "State": {"Status": "running"}, "NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}}
 
     def test_fresh_state_contains_only_known_services(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -115,6 +118,8 @@ class ManagerTests(unittest.TestCase):
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
             self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
+            loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
+            self.assertEqual(loki_spec["User"], "0")
 
     def test_filterlog_parser_extracts_firewall_event(self):
         message = "<134>Aug 25 12:00:00 firewall filterlog: 1,,,1000000103,igb0,match,block,in,4,0x0,,64,0,0,none,17,udp,60,203.0.113.10,192.0.2.20,4444,443"

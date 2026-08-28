@@ -156,6 +156,16 @@ class Manager:
             service = name.removeprefix("bocki-aio-")
             if service in SERVICE_DEFINITIONS:
                 result[service] = {"status": container.get("Status", "unknown"), "id": container.get("Id", "")}
+        for service in SERVICE_DEFINITIONS:
+            if service in result:
+                continue
+            try:
+                details = self.docker.inspect(f"bocki-aio-{service}")
+                state = details.get("State", {})
+                if isinstance(state, dict) and state.get("Status"):
+                    result[service] = {"status": state["Status"], "id": details.get("Id", "")}
+            except (OSError, DockerApiError, ValueError, AttributeError):
+                continue
         return result
 
     def service_action(self, service: str, action: str) -> dict[str, str]:
