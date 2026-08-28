@@ -65,6 +65,13 @@ class Manager:
                 return
             self.docker.ensure_network(MONITORING_NETWORK)
             self.docker.connect_network(MONITORING_NETWORK, "bocki-grafana-aio")
+            for service in SERVICE_DEFINITIONS:
+                container_name = f"bocki-aio-{service}"
+                try:
+                    self.docker.connect_network(MONITORING_NETWORK, container_name)
+                except DockerApiError as error:
+                    if "no such container" not in str(error).lower():
+                        raise
         except (OSError, DockerApiError, ValueError) as error:
             self.docker_error = str(error)
 
@@ -107,6 +114,8 @@ class Manager:
             networks = details.get("NetworkSettings", {}).get("Networks", {})
             network = networks.get(MONITORING_NETWORK, {})
             address = network.get("IPAddress", "")
+            if not address:
+                address = next((item.get("IPAddress", "") for item in networks.values() if item.get("IPAddress")), "")
         except (OSError, DockerApiError, ValueError, AttributeError):
             return None
         if not address:
