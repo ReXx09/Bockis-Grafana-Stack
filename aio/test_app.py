@@ -82,6 +82,16 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(manager.proxy_target("/grafana/"), ("172.30.0.7", 3000, "/"))
 
+    def test_proxy_falls_back_to_managed_container_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            docker.inspect = lambda name: {"NetworkSettings": {"Networks": {}}}
+            manager = Manager(Path(directory) / "data", docker)
+
+            self.assertEqual(manager.proxy_target("/grafana/"), ("bocki-aio-grafana", 3000, "/"))
+
     def test_install_creates_all_services_and_configs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

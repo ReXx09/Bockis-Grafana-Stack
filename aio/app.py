@@ -109,17 +109,19 @@ class Manager:
         service = parts[0]
         if service not in ports:
             return None
+        container_name = f"bocki-aio-{service}"
+        address = container_name
         try:
-            details = self.docker.inspect(f"bocki-aio-{service}")
+            details = self.docker.inspect(container_name)
             networks = details.get("NetworkSettings", {}).get("Networks", {})
             network = networks.get(MONITORING_NETWORK, {})
-            address = network.get("IPAddress", "")
+            inspected_address = network.get("IPAddress", "")
             if not address:
-                address = next((item.get("IPAddress", "") for item in networks.values() if item.get("IPAddress")), "")
+                inspected_address = next((item.get("IPAddress", "") for item in networks.values() if item.get("IPAddress")), "")
+            if inspected_address:
+                address = inspected_address
         except (OSError, DockerApiError, ValueError, AttributeError):
-            return None
-        if not address:
-            return None
+            pass
         return address, ports[service], "/" + (parts[1] if len(parts) == 2 else "")
 
     def state(self) -> dict[str, Any]:
