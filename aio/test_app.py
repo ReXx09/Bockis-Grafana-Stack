@@ -35,6 +35,9 @@ class ManagerTests(unittest.TestCase):
         def start(self, name):
             self.calls.append(("start", name))
 
+        def inspect(self, name):
+            return {"NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}}
+
     def test_fresh_state_contains_only_known_services(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Manager(Path(directory)).state()
@@ -70,6 +73,14 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "requested")
             self.assertEqual(docker.calls, [("bocki-aio-grafana", "restart")])
+
+    def test_proxy_uses_managed_container_ip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+
+            self.assertEqual(manager.proxy_target("/grafana/"), ("172.30.0.7", 3000, "/"))
 
     def test_install_creates_all_services_and_configs(self):
         with tempfile.TemporaryDirectory() as directory:

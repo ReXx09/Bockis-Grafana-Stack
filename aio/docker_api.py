@@ -50,6 +50,10 @@ class DockerClient:
         result = self.request("GET", "/containers/json?all=1")
         return result if isinstance(result, list) else []
 
+    def inspect(self, name: str) -> dict[str, object]:
+        result = self.request("GET", f"/containers/{quote(name, safe='')}/json")
+        return result if isinstance(result, dict) else {}
+
     def container_exists(self, name: str) -> bool:
         try:
             self.request("GET", f"/containers/{quote(name, safe='')}/json")

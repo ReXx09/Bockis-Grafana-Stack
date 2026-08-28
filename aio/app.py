@@ -92,18 +92,26 @@ class Manager:
         return {"status": "installed", "created": created}
 
     def proxy_target(self, route: str) -> tuple[str, int, str] | None:
-        proxy_host = self.config.get("proxy_host", "172.17.0.1")
-        targets = {
-            "grafana": (proxy_host, int(self.config.get("grafana_port", 3000))),
-            "influxdb": (proxy_host, int(self.config.get("influxdb_port", 8086))),
-            "loki": (proxy_host, 3100),
-            "alloy": (proxy_host, 12345),
+        ports = {
+            "grafana": 3000,
+            "influxdb": 8086,
+            "loki": 3100,
+            "alloy": 12345,
         }
         parts = route.strip("/").split("/", 1)
-        target = targets.get(parts[0])
-        if not target:
+        service = parts[0]
+        if service not in ports:
             return None
-        return target[0], target[1], "/" + (parts[1] if len(parts) == 2 else "")
+        try:
+            details = self.docker.inspect(f"bocki-aio-{service}")
+            networks = details.get("NetworkSettings", {}).get("Networks", {})
+            network = networks.get(MONITORING_NETWORK, {})
+            address = network.get("IPAddress", "")
+        except (OSError, DockerApiError, ValueError, AttributeError):
+            return None
+        if not address:
+            return None
+        return address, ports[service], "/" + (parts[1] if len(parts) == 2 else "")
 
     def state(self) -> dict[str, Any]:
         containers = self._containers_by_service()
@@ -217,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
         route, _, query = self.path.partition("?")
         target = self.manager.proxy_target(route)
         if not target:
-            self._send(HTTPStatus.NOT_FOUND, {"error": "Unbekannter Dienst"})
+            self._send(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Dienst ist nicht im Netzwerk bocki-monitoring erreichbar"})
             return
         hostname, port, path = target
         body = self.rfile.read(int(self.headers.get("Content-Length", "0"))) if method in {"POST", "PUT", "DELETE"} else None
