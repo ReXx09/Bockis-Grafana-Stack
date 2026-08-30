@@ -39,12 +39,41 @@ class DockerClient:
         status = int(status_line.split()[1])
         if status >= 400:
             raise DockerApiError(body.decode("utf-8", errors="replace") or status_line)
+        header_map = {
+            line.split(b":", 1)[0].strip().lower(): line.split(b":", 1)[1].strip().lower()
+            for line in headers.splitlines()[1:]
+            if b":" in line
+        }
+        if header_map.get(b"transfer-encoding") == b"chunked":
+            body = self._decode_chunked(body)
         if not body:
             return {}
         try:
             return json.loads(body.decode("utf-8"))
         except json.JSONDecodeError:
             return {}
+
+    @staticmethod
+    def _decode_chunked(body: bytes) -> bytes:
+        decoded = bytearray()
+        position = 0
+        while True:
+            line_end = body.find(b"\r\n", position)
+            if line_end < 0:
+                raise DockerApiError("Ungueltige chunked Docker-Antwort")
+            size_text = body[position:line_end].split(b";", 1)[0].strip()
+            try:
+                size = int(size_text, 16)
+            except ValueError as error:
+                raise DockerApiError("Ungueltige chunked Docker-Antwort") from error
+            position = line_end + 2
+            if size == 0:
+                return bytes(decoded)
+            end = position + size
+            if end + 2 > len(body) or body[end:end + 2] != b"\r\n":
+                raise DockerApiError("Ungueltige chunked Docker-Antwort")
+            decoded.extend(body[position:end])
+            position = end + 2
 
     def containers(self) -> list[dict[str, object]]:
         result = self.request("GET", "/containers/json?all=1")
