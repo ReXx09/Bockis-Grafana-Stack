@@ -14,7 +14,7 @@
   <WebUI>http://[IP]:[PORT:8800]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/ReXx09/Bockis-Grafana-Stack/master/docker/unraid/templates/bocki-grafana-aio.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/ReXx09/Bockis-Grafana-Stack/main/docs/bocki-grafana-icon.png</Icon>
-  <ExtraParams />
+  <ExtraParams>--label net.unraid.docker.managed=dockerman --label net.unraid.docker.webui=http://[IP]:[PORT:8800]</ExtraParams>
   <PostArgs />
   <CPUset />
   <DateInstalled />
