@@ -293,6 +293,26 @@ document.getElementById('setup').addEventListener('submit',async event=>{event.p
 </script></body></html>"""
 
 
+
+def running_processes() -> list[str]:
+    processes = []
+    try:
+        entries = list(Path("/proc").iterdir())
+    except OSError:
+        return processes
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes().replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()
+            command = command or (entry / "comm").read_text(encoding="utf-8").strip()
+            if command:
+                processes.append(f"{entry.name}: {command}")
+        except (OSError, UnicodeError):
+            continue
+    return sorted(processes, key=lambda process: int(process.split(":", 1)[0]))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bind", default="0.0.0.0")
@@ -302,7 +322,14 @@ def main() -> None:
     manager = Manager(args.data_dir)
     Handler.manager = manager
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
+    print(f"Bocki Grafana AIO version={os.getenv('AIO_VERSION', 'unknown')}")
     print(f"Bocki Grafana AIO listening on {args.bind}:{args.port}")
+    print("Running processes:")
+    for process in running_processes():
+        print(f"  {process}")
+    print("Managed services:")
+    for service, details in manager._containers_by_service().items():
+        print(f"  {service}: {details['status']}")
     server.serve_forever()
 
 

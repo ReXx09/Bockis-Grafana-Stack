@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from aio.app import Handler, Manager
+from aio.app import Handler, Manager, running_processes
 from aio.docker_api import DockerApiError, DockerClient
 from aio.filterlog import FilterlogParseError, parse_filterlog
 from aio.services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
@@ -53,6 +53,12 @@ class ManagerTests(unittest.TestCase):
         body = b"3\r\n[1,\r\n4\r\n2,3]\r\n0\r\n\r\n"
 
         self.assertEqual(DockerClient._decode_chunked(body), b"[1,2,3]")
+
+    def test_running_processes_returns_pid_prefixed_entries(self):
+        processes = running_processes()
+
+        self.assertIsInstance(processes, list)
+        self.assertTrue(all(": " in process for process in processes))
 
     def test_setup_requires_both_passwords(self):
         with self.assertRaises(ValueError):
