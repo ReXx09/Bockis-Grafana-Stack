@@ -58,6 +58,25 @@ class StackOrchestrator:
             created.append(service)
         return created
 
+    def reinstall(self, config: dict[str, Any]) -> list[str]:
+        self.provision_files(config)
+        self.docker.ensure_network(NETWORK_NAME)
+        manager_name = config.get("manager_container_name", "bocki-grafana-aio")
+        try:
+            self.docker.connect_network(NETWORK_NAME, manager_name)
+        except Exception:
+            pass
+        recreated = []
+        for service, definition in SERVICE_DEFINITIONS.items():
+            name = f"bocki-aio-{service}"
+            if self.docker.container_exists(name):
+                self.docker.remove(name)
+            self.docker.pull(definition["image"])
+            self.docker.create_container(name, self.container_spec(service, config))
+            self.docker.start(name)
+            recreated.append(service)
+        return recreated
+
     def container_spec(self, service: str, config: dict[str, Any]) -> dict[str, Any]:
         image = SERVICE_DEFINITIONS[service]["image"]
         host = self.host_data_dir

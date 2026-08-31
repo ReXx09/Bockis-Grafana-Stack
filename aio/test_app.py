@@ -31,6 +31,9 @@ class ManagerTests(unittest.TestCase):
         def container_exists(self, name):
             return False
 
+        def remove(self, name):
+            self.calls.append(("remove", name))
+
         def create_container(self, name, spec):
             self.calls.append(("create", name, spec))
 
@@ -192,6 +195,25 @@ class ManagerTests(unittest.TestCase):
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)
             self.assertEqual(sum(call[0] == "create" for call in docker.calls), 5)
+
+    def test_reinstall_recreates_services_and_keeps_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx"})
+            persistent = root / "host" / "grafana" / "grafana.db"
+            persistent.parent.mkdir(parents=True)
+            persistent.write_text("keep", encoding="utf-8")
+            manager.config["host_data_dir"] = str(root / "host")
+
+            result = manager.reinstall_stack()
+
+            self.assertEqual(set(result["recreated"]), set(SERVICE_DEFINITIONS))
+            self.assertEqual(persistent.read_text(encoding="utf-8"), "keep")
+            self.assertTrue((root / "data" / "backups").exists())
 
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]

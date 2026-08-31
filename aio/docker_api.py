@@ -117,6 +117,10 @@ class DockerClient:
     def start(self, name: str) -> None:
         self.action(name, "start")
 
+    def remove(self, name: str) -> None:
+        safe_name = quote(name, safe="")
+        self.request("DELETE", f"/containers/{safe_name}?force=1")
+
     def action(self, container_name: str, action: str) -> None:
         safe_name = quote(container_name, safe="")
         endpoint = {"start": "start", "stop": "stop", "restart": "restart"}[action]
