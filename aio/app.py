@@ -242,6 +242,23 @@ class Manager:
             raise DockerUnavailable("Docker-Socket nicht gefunden; Manager mit /var/run/docker.sock starten")
         return self.docker.logs(f"bocki-aio-{service}", tail=tail)
 
+    def webui_check(self, service: str) -> dict[str, Any]:
+        if service not in {"grafana", "influxdb", "loki", "alloy"}:
+            raise ValueError("Dieser Dienst hat keine WebUI")
+        target = self.proxy_target(f"/{service}/")
+        if not target:
+            raise ValueError("WebUI-Ziel konnte nicht bestimmt werden")
+        hostname, port, path = target
+        connection = http.client.HTTPConnection(hostname, port, timeout=5)
+        try:
+            connection.request("GET", path or "/")
+            response = connection.getresponse()
+            return {"service": service, "reachable": response.status < 500, "status": response.status, "reason": response.reason}
+        except (OSError, http.client.HTTPException) as error:
+            return {"service": service, "reachable": False, "error": str(error)}
+        finally:
+            connection.close()
+
     def telegraf_config(self) -> str:
         path = Path(self.config.get("host_data_dir", DEFAULT_CONFIG["host_data_dir"])) / "telegraf.custom.conf"
         if path.exists():
@@ -337,6 +354,13 @@ class Handler(BaseHTTPRequestHandler):
                 logs = self.manager.service_logs(service)
                 self._send(HTTPStatus.OK, {"service": service, "logs": logs})
             except (ValueError, DockerUnavailable, DockerApiError, OSError) as error:
+                self._send(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+        if self.path.startswith(prefix) and self.path.endswith("/webui-check"):
+            service = self.path[len(prefix):-len("/webui-check")]
+            try:
+                self._send(HTTPStatus.OK, self.manager.webui_check(service))
+            except (ValueError, DockerApiError, OSError) as error:
                 self._send(HTTPStatus.BAD_REQUEST, {"error": str(error)})
             return
         if self.path.startswith(("/grafana", "/influxdb", "/loki", "/alloy")):
@@ -453,8 +477,8 @@ window.addEventListener('unhandledrejection',event=>{showError('Verbindung zum M
 window.addEventListener('error',event=>{showError('WebUI-Fehler: '+event.message)});
 document.getElementById('clear-log').addEventListener('click',()=>{localStorage.removeItem(logStorageKey);document.getElementById('live-log').textContent='Noch keine Aktionen.'});restoreLog();
 function statusClass(status){const s=status.toLowerCase();if(s.includes('unhealthy')||s.includes('exited')||s==='not-created')return 'status-bad';if(s.includes('starting')||s.includes('restarting'))return 'status-warn';if(s.includes('healthy')||s.startsWith('up'))return 'status-ok';return ''}
-async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>{const link=SERVICE_LINKS[name]||(DIRECT_PORTS[name]?`http://${location.hostname}:${data.config[DIRECT_PORTS[name]]}/`:'');const webui=link?`<a href="${link}" target="_blank" rel="noreferrer">Oeffnen</a>`:'&ndash;';const actions=['start','stop','restart','update','logs'].map(action=>`<button data-service="${name}" data-action="${action}">${action}</button>`).join('');return `<tr><td><strong>${name}</strong></td><td>${webui}</td><td><small class="muted">${item.container} &middot; ${item.image}</small></td><td><span class="badge ${statusClass(item.status)}">${item.status}</span></td><td class="actions">${actions}</td></tr>`}).join('');if(data.docker_error){document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;logEvent('Docker-Fehler: '+data.docker_error)}else if(data.last_error){document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error;logEvent('Installationsfehler: '+data.last_error)}if(!formFilled){for(const [key,value] of Object.entries(data.config)){const field=document.querySelector(`#setup [name="${key}"]`);if(field&&field.type!=='password')field.value=value}formFilled=true}}
-document.getElementById('services').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;const service=button.dataset.service,action=button.dataset.action;if(action==='logs'){const response=await fetch(`/api/services/${service}/logs`);const data=await response.json();document.getElementById('logs-title').textContent=`Logs: ${service}`;document.getElementById('logs-content').textContent=data.logs||data.error||'(keine Ausgabe)';document.getElementById('logs-modal').showModal();logEvent(data.error?`${service}: Log-Fehler: ${data.error}`:`Logs von ${service} geladen`);return}button.disabled=true;const response=await fetch(`/api/services/${service}/${action}`,{method:'POST'});const data=await response.json();button.disabled=false;if(data.error){document.getElementById('message').textContent=data.error;logEvent(`${service}: ${action} fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent=action==='update'?(data.update_available?`Neues Image fuer ${service} heruntergeladen - Neustart empfohlen.`:`${service} ist bereits aktuell.`):`${service}: ${action} ausgefuehrt.`;logEvent(document.getElementById('message').textContent);state()});
+async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>{const link=SERVICE_LINKS[name]||(DIRECT_PORTS[name]?`http://${location.hostname}:${data.config[DIRECT_PORTS[name]]}/`:'');const webui=link?`<a href="${link}" target="_blank" rel="noreferrer">Oeffnen</a>`:'&ndash;';const actions=['start','stop','restart','update','logs'].concat(link?['check']:[]).map(action=>`<button data-service="${name}" data-action="${action}">${action==='check'?'WebUI pruefen':action}</button>`).join('');return `<tr><td><strong>${name}</strong></td><td>${webui}</td><td><small class="muted">${item.container} &middot; ${item.image}</small></td><td><span class="badge ${statusClass(item.status)}">${item.status}</span></td><td class="actions">${actions}</td></tr>`}).join('');if(data.docker_error){document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;logEvent('Docker-Fehler: '+data.docker_error)}else if(data.last_error){document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error;logEvent('Installationsfehler: '+data.last_error)}if(!formFilled){for(const [key,value] of Object.entries(data.config)){const field=document.querySelector(`#setup [name="${key}"]`);if(field&&field.type!=='password')field.value=value}formFilled=true}}
+document.getElementById('services').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;const service=button.dataset.service,action=button.dataset.action;if(action==='check'){const response=await fetch(`/api/services/${service}/webui-check`);const data=await response.json();const message=data.error?`${service}: WebUI-Pruefung fehlgeschlagen: ${data.error}`:data.reachable?`${service}: WebUI erreichbar (${data.status} ${data.reason})`:`${service}: WebUI nicht erreichbar: ${data.error||`${data.status} ${data.reason}`}`;document.getElementById('message').textContent=message;logEvent(message);return}if(action==='logs'){const response=await fetch(`/api/services/${service}/logs`);const data=await response.json();document.getElementById('logs-title').textContent=`Logs: ${service}`;document.getElementById('logs-content').textContent=data.logs||data.error||'(keine Ausgabe)';document.getElementById('logs-modal').showModal();logEvent(data.error?`${service}: Log-Fehler: ${data.error}`:`Logs von ${service} geladen`);return}button.disabled=true;const response=await fetch(`/api/services/${service}/${action}`,{method:'POST'});const data=await response.json();button.disabled=false;if(data.error){document.getElementById('message').textContent=data.error;logEvent(`${service}: ${action} fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent=action==='update'?(data.update_available?`Neues Image fuer ${service} heruntergeladen - Neustart empfohlen.`:`${service} ist bereits aktuell.`):`${service}: ${action} ausgefuehrt.`;logEvent(document.getElementById('message').textContent);state()});
 document.getElementById('logs-close').addEventListener('click',()=>document.getElementById('logs-modal').close());
 async function loadTelegraf(){const response=await fetch('/api/config/telegraf');const data=await response.json();if(data.error){logEvent('Telegraf-Laden fehlgeschlagen: '+data.error);return}document.getElementById('telegraf-config').value=data.config;logEvent('Telegraf-Konfiguration geladen')}
 document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
