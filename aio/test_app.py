@@ -1,3 +1,4 @@
+import base64
 import json
 import tempfile
 import unittest
@@ -39,7 +40,15 @@ class ManagerTests(unittest.TestCase):
         def inspect(self, name):
             if name != "bocki-aio-grafana":
                 raise DockerApiError("no such container")
-            return {"Id": "abc123", "State": {"Status": "running"}, "NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}}
+            return {"Id": "abc123", "State": {"Status": "running"}, "NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}, "Image": "sha256:old"}
+
+        def image_id(self, image):
+            self.calls.append(("image_id", image))
+            return "sha256:new"
+
+        def logs(self, name, tail=200):
+            self.calls.append(("logs", name, tail))
+            return f"log output for {name}"
 
     def test_fresh_state_contains_only_known_services(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -53,6 +62,11 @@ class ManagerTests(unittest.TestCase):
         body = b"3\r\n[1,\r\n4\r\n2,3]\r\n0\r\n\r\n"
 
         self.assertEqual(DockerClient._decode_chunked(body), b"[1,2,3]")
+
+    def test_docker_client_demuxes_log_frames(self):
+        frame = b"\x01\x00\x00\x00\x00\x00\x00\x05hello" + b"\x02\x00\x00\x00\x00\x00\x00\x05world"
+
+        self.assertEqual(DockerClient._demux_logs(frame), "helloworld")
 
     def test_running_processes_returns_pid_prefixed_entries(self):
         processes = running_processes()
@@ -86,7 +100,60 @@ class ManagerTests(unittest.TestCase):
             result = manager.service_action("grafana", "restart")
 
             self.assertEqual(result["status"], "requested")
-            self.assertEqual(docker.calls, [("bocki-aio-grafana", "restart")])
+            self.assertIn(("bocki-aio-grafana", "restart"), docker.calls)
+
+    def test_service_action_update_reports_availability(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            result = manager.service_action("grafana", "update")
+
+            self.assertTrue(result["update_available"])
+            self.assertIn(("image_id", "grafana/grafana:11.5.2"), docker.calls)
+
+    def test_service_logs_returns_container_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            logs = manager.service_logs("grafana")
+
+            self.assertEqual(logs, "log output for bocki-aio-grafana")
+
+    def test_admin_password_is_generated_and_persisted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data_dir = Path(directory) / "data"
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            first = Manager(data_dir, self.FakeDocker(str(socket_path)))
+            second = Manager(data_dir, self.FakeDocker(str(socket_path)))
+
+            self.assertEqual(first.admin_password, second.admin_password)
+            self.assertTrue((data_dir / "admin_password.txt").exists())
+
+    def test_authentication_accepts_only_correct_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+            manager.admin_user = "admin"
+            manager.admin_password = "secret"
+            handler = Handler.__new__(Handler)
+            handler.manager = manager
+
+            handler.headers = {"Authorization": "Basic " + base64.b64encode(b"admin:secret").decode()}
+            self.assertTrue(handler._authenticated())
+
+            handler.headers = {"Authorization": "Basic " + base64.b64encode(b"admin:wrong").decode()}
+            self.assertFalse(handler._authenticated())
+
+            handler.headers = {}
+            self.assertFalse(handler._authenticated())
 
     def test_proxy_uses_managed_container_ip(self):
         with tempfile.TemporaryDirectory() as directory:

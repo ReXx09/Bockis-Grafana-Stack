@@ -13,3 +13,11 @@ Open `http://127.0.0.1:8800`. The Docker socket is optional for the initial setu
 ## Manager aktualisieren
 
 Der Manager aktualisiert sich nicht selbst. Nach einem neuen GHCR-Image in Unraid unter **Docker** beim Container `bocki-grafana-aio` **Force Update** ausfuehren. Die Konfiguration und Daten bleiben im Appdata-Mount erhalten. Danach die WebUI neu laden und die Dienststatus pruefen.
+
+## Login
+
+Die WebUI ist per HTTP Basic-Auth geschuetzt. Benutzername/Passwort koennen ueber die Container-Variablen `AIO_ADMIN_USER` / `AIO_ADMIN_PASSWORD` gesetzt werden. Ohne `AIO_ADMIN_PASSWORD` wird beim ersten Start ein zufaelliges Passwort erzeugt, unter `/data/admin_password.txt` gespeichert und einmalig im Container-Log ausgegeben.
+
+## Dienste-Aktionen
+
+Pro Dienst stehen in der Tabelle Buttons fuer Start/Stop/Restart/Update sowie ein Log-Viewer zur Verfuegung. Beim Update wird das Image neu gezogen und angezeigt, ob sich die Image-ID geaendert hat (Neustart des Dienstes noetig, um das neue Image zu verwenden).
