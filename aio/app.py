@@ -153,11 +153,13 @@ class Manager:
         container_name = f"bocki-aio-{service}"
         address = container_name
         try:
+            if hasattr(self.docker, "connect_network"):
+                self.docker.connect_network(MONITORING_NETWORK, "bocki-grafana-aio")
             details = self.docker.inspect(container_name)
             networks = details.get("NetworkSettings", {}).get("Networks", {})
             network = networks.get(MONITORING_NETWORK, {})
             inspected_address = network.get("IPAddress", "")
-            if not address:
+            if not inspected_address:
                 inspected_address = next((item.get("IPAddress", "") for item in networks.values() if item.get("IPAddress")), "")
             if inspected_address:
                 address = inspected_address
@@ -375,6 +377,10 @@ class Handler(BaseHTTPRequestHandler):
         required = ("grafana_admin_password", "influx_admin_password")
         if not configured and any(not str(payload.get(key, "")).strip() for key in required):
             raise ValueError("Grafana- und InfluxDB-Passwort sind erforderlich")
+        for key in required:
+            value = str(payload.get(key, ""))
+            if value and not 8 <= len(value) <= 72:
+                raise ValueError(f"{key} muss zwischen 8 und 72 Zeichen lang sein")
         for key in ("organization", "bucket", "retention", "grafana_admin_user"):
             if payload.get(key) and len(str(payload[key])) > 100:
                 raise ValueError(f"Wert fuer {key} ist zu lang")
