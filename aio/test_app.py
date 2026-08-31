@@ -15,6 +15,7 @@ class ManagerTests(unittest.TestCase):
         def __init__(self, socket_path):
             self.socket_path = socket_path
             self.calls = []
+            self.container_present = False
 
         def containers(self):
             return [{"Names": ["/bocki-aio-grafana"], "Status": "Up 2 minutes", "Id": "abc123"}]
@@ -29,7 +30,7 @@ class ManagerTests(unittest.TestCase):
             self.calls.append(("network", name))
 
         def container_exists(self, name):
-            return False
+            return self.container_present and name == "bocki-aio-telegraf"
 
         def remove(self, name):
             self.calls.append(("remove", name))
@@ -244,6 +245,7 @@ class ManagerTests(unittest.TestCase):
             socket_path.touch()
             docker = self.FakeDocker(str(socket_path))
             manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana123", "influx_admin_password": "influx123"})
             manager.config["host_data_dir"] = str(root / "host")
             custom_path = root / "host" / "telegraf.custom.conf"
             invalid = "[agent\n  interval = \"5s\"\n"
@@ -252,6 +254,25 @@ class ManagerTests(unittest.TestCase):
                 manager.save_telegraf_config(invalid)
 
             self.assertFalse(custom_path.exists())
+
+    def test_telegraf_save_backups_previous_config_and_restarts_container(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana123", "influx_admin_password": "influx123"})
+            manager.config["host_data_dir"] = str(root / "host")
+
+            manager.save_telegraf_config("[agent]\n  interval = \"10s\"\n")
+            docker.container_present = True
+            manager.save_telegraf_config("[agent]\n  interval = \"5s\"\n")
+
+            backups = list((root / "data" / "backups" / "telegraf").glob("*.conf"))
+            self.assertEqual(len(backups), 1)
+            self.assertIn('interval = "10s"', backups[0].read_text(encoding="utf-8"))
+            self.assertIn(("bocki-aio-telegraf", "restart"), docker.calls)
 
     def test_filterlog_parser_extracts_firewall_event(self):
         message = "<134>Aug 25 12:00:00 firewall filterlog: 1,,,1000000103,igb0,match,block,in,4,0x0,,64,0,0,none,17,udp,60,203.0.113.10,192.0.2.20,4444,443"
