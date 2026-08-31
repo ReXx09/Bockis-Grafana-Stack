@@ -20,7 +20,7 @@ Die WebUI ist per HTTP Basic-Auth geschuetzt. Benutzername/Passwort koennen uebe
 
 ## Dienste-Aktionen
 
-Pro Dienst stehen in der Tabelle Buttons fuer Start/Stop/Restart/Update sowie ein Log-Viewer zur Verfuegung. Beim Update wird das Image neu gezogen und angezeigt, ob sich die Image-ID geaendert hat (Neustart des Dienstes noetig, um das neue Image zu verwenden).
+Pro Dienst stehen in der Tabelle Buttons fuer Start/Stop/Restart/Update sowie ein Log-Viewer zur Verfuegung. Bei Diensten mit WebUI kann **WebUI pruefen** die Verbindung vom Manager zum Container testen und HTTP-Status oder konkrete Verbindungsfehler ins Live-Log schreiben. Beim Update wird das Image neu gezogen und angezeigt, ob sich die Image-ID geaendert hat (Neustart des Dienstes noetig, um das neue Image zu verwenden).
 
 ## Stack neu erstellen
 

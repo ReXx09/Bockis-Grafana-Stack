@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from aio.app import Handler, Manager, running_processes
 from aio.docker_api import DockerApiError, DockerClient
@@ -128,6 +129,53 @@ class ManagerTests(unittest.TestCase):
             logs = manager.service_logs("grafana")
 
             self.assertEqual(logs, "log output for bocki-aio-grafana")
+
+    def test_webui_check_reports_http_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+            response = Mock(status=200, reason="OK")
+
+            with patch("aio.app.http.client.HTTPConnection") as connection_class:
+                connection_class.return_value.getresponse.return_value = response
+
+                result = manager.webui_check("grafana")
+
+            self.assertEqual(result, {"service": "grafana", "reachable": True, "status": 200, "reason": "OK"})
+            connection_class.return_value.request.assert_called_once_with("GET", "/")
+
+    def test_webui_check_reports_http_error_and_rejects_unknown_service(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+            response = Mock(status=503, reason="Service Unavailable")
+
+            with patch("aio.app.http.client.HTTPConnection") as connection_class:
+                connection_class.return_value.getresponse.return_value = response
+
+                result = manager.webui_check("grafana")
+
+            self.assertFalse(result["reachable"])
+            self.assertEqual(result["status"], 503)
+            with self.assertRaisesRegex(ValueError, "keine WebUI"):
+                manager.webui_check("telegraf")
+
+    def test_webui_check_api_route_returns_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+            handler = Handler.__new__(Handler)
+            handler.manager = manager
+            handler.path = "/api/services/grafana/webui-check"
+
+            with patch.object(handler, "_require_auth", return_value=True), patch.object(handler, "_send") as send:
+                with patch.object(manager, "webui_check", return_value={"service": "grafana", "reachable": True, "status": 200, "reason": "OK"}):
+                    handler.do_GET()
+
+            send.assert_called_once_with(200, {"service": "grafana", "reachable": True, "status": 200, "reason": "OK"})
 
     def test_admin_password_is_generated_and_persisted(self):
         with tempfile.TemporaryDirectory() as directory:

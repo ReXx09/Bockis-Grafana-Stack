@@ -470,8 +470,8 @@ const SERVICE_LINKS={grafana:'/grafana/'};
 const DIRECT_PORTS={influxdb:'influxdb_port',loki:'loki_port',alloy:'alloy_port'};
 let formFilled=false;
 const logStorageKey='bocki-aio-live-log';
-function restoreLog(){let entries=[];try{entries=JSON.parse(localStorage.getItem(logStorageKey)||'[]')}catch(error){localStorage.removeItem(logStorageKey)}if(!Array.isArray(entries)||!entries.length)return;document.getElementById('live-log').textContent=entries.join('\n')+'\n'}
-function logEvent(message){const log=document.getElementById('live-log');const time=new Date().toLocaleTimeString('de-DE');const entry=`[${time}] ${message}`;if(log.textContent==='Noch keine Aktionen.')log.textContent='';log.textContent+=entry+'\n';const entries=log.textContent.trimEnd().split('\n').slice(-200);localStorage.setItem(logStorageKey,JSON.stringify(entries));log.scrollTop=log.scrollHeight}
+function restoreLog(){let entries=[];try{entries=JSON.parse(localStorage.getItem(logStorageKey)||'[]')}catch(error){localStorage.removeItem(logStorageKey)}if(!Array.isArray(entries)||!entries.length)return;document.getElementById('live-log').textContent=entries.join('\\n')+'\\n'}
+function logEvent(message){const log=document.getElementById('live-log');const time=new Date().toLocaleTimeString('de-DE');const entry=`[${time}] ${message}`;if(log.textContent==='Noch keine Aktionen.')log.textContent='';log.textContent+=entry+'\\n';const entries=log.textContent.trimEnd().split('\\n').slice(-200);localStorage.setItem(logStorageKey,JSON.stringify(entries));log.scrollTop=log.scrollHeight}
 function showError(message){document.getElementById('message').textContent=message;logEvent(message)}
 window.addEventListener('unhandledrejection',event=>{showError('Verbindung zum Manager fehlgeschlagen: '+(event.reason?.message||'keine Antwort'))});
 window.addEventListener('error',event=>{showError('WebUI-Fehler: '+event.message)});
