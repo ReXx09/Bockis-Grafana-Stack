@@ -33,4 +33,6 @@
   <Config Name="Alloy HTTP Port" Target="AIO_ALLOY_PORT" Default="12345" Mode="" Description="Host-Port der Alloy-Statusseite" Type="Variable" Display="advanced" Required="true" Mask="false">12345</Config>
   <Config Name="Docker Gateway fuer Proxy" Target="AIO_PROXY_HOST" Default="172.17.0.1" Mode="" Description="Docker-Bridge-Gateway des Unraid-Hosts fuer die zentrale Dienstweiterleitung" Type="Variable" Display="advanced" Required="true" Mask="false">172.17.0.1</Config>
   <Config Name="Syslog Port" Target="AIO_SYSLOG_PORT" Default="5514" Mode="" Description="Host-UDP-Port des intern erzeugten Alloy-Containers" Type="Variable" Display="always" Required="true" Mask="false">5514</Config>
+  <Config Name="Admin Benutzer" Target="AIO_ADMIN_USER" Default="admin" Mode="" Description="Benutzername fuer den Login der Manager-WebUI" Type="Variable" Display="advanced" Required="false" Mask="false">admin</Config>
+  <Config Name="Admin Passwort" Target="AIO_ADMIN_PASSWORD" Default="" Mode="" Description="Passwort fuer den Login der Manager-WebUI; leer lassen fuer ein automatisch generiertes Passwort (siehe Container-Log)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
 </Container>

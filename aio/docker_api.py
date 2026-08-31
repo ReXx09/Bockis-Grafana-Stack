@@ -16,6 +16,15 @@ class DockerClient:
         self.socket_path = socket_path
 
     def request(self, method: str, path: str, payload: dict | None = None) -> object:
+        _, body = self._transact(method, path, payload)
+        if not body:
+            return {}
+        try:
+            return json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
+
+    def _transact(self, method: str, path: str, payload: dict | None = None) -> tuple[dict, bytes]:
         body = json.dumps(payload).encode() if payload is not None else b""
         request = (
             f"{method} {path} HTTP/1.1\r\nHost: docker\r\nConnection: close\r\n"
@@ -46,12 +55,7 @@ class DockerClient:
         }
         if header_map.get(b"transfer-encoding") == b"chunked":
             body = self._decode_chunked(body)
-        if not body:
-            return {}
-        try:
-            return json.loads(body.decode("utf-8"))
-        except json.JSONDecodeError:
-            return {}
+        return header_map, body
 
     @staticmethod
     def _decode_chunked(body: bytes) -> bytes:
@@ -124,3 +128,30 @@ class DockerClient:
         if tag:
             query += f"&tag={quote(tag, safe='')}"
         self.request("POST", f"/images/create{query}")
+
+    def image_id(self, image: str) -> str:
+        result = self.request("GET", f"/images/{quote(image, safe='')}/json")
+        return str(result.get("Id", "")) if isinstance(result, dict) else ""
+
+    def logs(self, name: str, tail: int = 200) -> str:
+        path = f"/containers/{quote(name, safe='')}/logs?stdout=1&stderr=1&tail={int(tail)}"
+        _, body = self._transact("GET", path)
+        return self._demux_logs(body)
+
+    @staticmethod
+    def _demux_logs(raw: bytes) -> str:
+        if not raw:
+            return ""
+        lines = []
+        position = 0
+        while position + 8 <= len(raw):
+            stream_type = raw[position]
+            if stream_type not in (0, 1, 2) or raw[position + 1:position + 4] != b"\x00\x00\x00":
+                return raw.decode("utf-8", errors="replace")
+            size = int.from_bytes(raw[position + 4:position + 8], "big")
+            position += 8
+            if position + size > len(raw):
+                break
+            lines.append(raw[position:position + size].decode("utf-8", errors="replace"))
+            position += size
+        return "".join(lines) if lines else raw.decode("utf-8", errors="replace")

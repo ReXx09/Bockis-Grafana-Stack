@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import http.client
 import json
 import os
@@ -54,7 +55,20 @@ class Manager:
         self.config = read_json(self.config_path, DEFAULT_CONFIG)
         self.docker = docker or DockerClient()
         self.docker_error: str | None = None
+        self.admin_user = os.getenv("AIO_ADMIN_USER", "admin")
+        self.admin_password = self._load_admin_password()
         self._connect_monitoring_network()
+
+    def _load_admin_password(self) -> str:
+        env_password = os.getenv("AIO_ADMIN_PASSWORD", "").strip()
+        if env_password:
+            return env_password
+        secret_path = self.data_dir / "admin_password.txt"
+        if secret_path.exists():
+            return secret_path.read_text(encoding="utf-8").strip()
+        password = secrets.token_urlsafe(18)
+        secret_path.write_text(password, encoding="utf-8")
+        return password
 
     def _connect_monitoring_network(self) -> None:
         if not Path(self.docker.socket_path).exists():
@@ -78,7 +92,11 @@ class Manager:
     def save_config(self, values: dict[str, Any]) -> None:
         config = dict(DEFAULT_CONFIG)
         config.update(self.config)
-        config.update(values)
+        secret_fields = {"grafana_admin_password", "influx_admin_password"}
+        for key, value in values.items():
+            if key in secret_fields and not str(value).strip():
+                continue
+            config[key] = value
         config["configured"] = True
         config.setdefault("influx_admin_token", secrets.token_urlsafe(32))
         self.config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
@@ -168,7 +186,7 @@ class Manager:
                 continue
         return result
 
-    def service_action(self, service: str, action: str) -> dict[str, str]:
+    def service_action(self, service: str, action: str) -> dict[str, Any]:
         if service not in SERVICE_DEFINITIONS:
             raise ValueError("Unbekannter Dienst")
         if action not in ALLOWED_ACTIONS:
@@ -177,10 +195,25 @@ class Manager:
             raise DockerUnavailable("Docker-Socket nicht gefunden; Manager mit /var/run/docker.sock starten")
         container_name = f"bocki-aio-{service}"
         if action == "update":
-            self.docker.pull(SERVICE_DEFINITIONS[service]["image"])
-            return {"service": service, "action": action, "status": "image-pulled"}
+            image = SERVICE_DEFINITIONS[service]["image"]
+            old_image_id = ""
+            try:
+                old_image_id = str(self.docker.inspect(container_name).get("Image", ""))
+            except (OSError, DockerApiError, ValueError):
+                pass
+            self.docker.pull(image)
+            new_image_id = self.docker.image_id(image)
+            update_available = bool(old_image_id) and bool(new_image_id) and old_image_id != new_image_id
+            return {"service": service, "action": action, "status": "image-pulled", "update_available": update_available}
         self.docker.action(container_name, action)
         return {"service": service, "action": action, "status": "requested"}
+
+    def service_logs(self, service: str, tail: int = 200) -> str:
+        if service not in SERVICE_DEFINITIONS:
+            raise ValueError("Unbekannter Dienst")
+        if not Path(self.docker.socket_path).exists():
+            raise DockerUnavailable("Docker-Socket nicht gefunden; Manager mit /var/run/docker.sock starten")
+        return self.docker.logs(f"bocki-aio-{service}", tail=tail)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -194,7 +227,34 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _authenticated(self) -> bool:
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Basic "):
+            return False
+        try:
+            user, _, password = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+        except (ValueError, UnicodeDecodeError):
+            return False
+        return secrets.compare_digest(user, self.manager.admin_user) and secrets.compare_digest(password, self.manager.admin_password)
+
+    def _require_auth(self) -> bool:
+        if self._authenticated():
+            return True
+        self._send_unauthorized()
+        return False
+
+    def _send_unauthorized(self) -> None:
+        body = json.dumps({"error": "Nicht autorisiert"}).encode("utf-8")
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("WWW-Authenticate", 'Basic realm="Bocki Grafana AIO"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:  # noqa: N802
+        if not self._require_auth():
+            return
         if self.path == "/api/state":
             self._send(HTTPStatus.OK, self.manager.state())
             return
@@ -206,12 +266,23 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        prefix = "/api/services/"
+        if self.path.startswith(prefix) and self.path.endswith("/logs"):
+            service = self.path[len(prefix):-len("/logs")]
+            try:
+                logs = self.manager.service_logs(service)
+                self._send(HTTPStatus.OK, {"service": service, "logs": logs})
+            except (ValueError, DockerUnavailable, DockerApiError, OSError) as error:
+                self._send(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
         if self.path.startswith(("/grafana", "/influxdb", "/loki", "/alloy")):
             self._proxy("GET")
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "Nicht gefunden"})
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._require_auth():
+            return
         try:
             if self.path.startswith(("/grafana", "/influxdb", "/loki", "/alloy")):
                 self._proxy("POST")
@@ -219,7 +290,7 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/setup":
-                self._validate_setup(payload)
+                self._validate_setup(payload, bool(self.manager.config.get("configured")))
                 self.manager.save_config(payload)
                 self._send(HTTPStatus.OK, self.manager.state())
                 return
@@ -237,9 +308,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.BAD_REQUEST, {"error": str(error)})
 
     def do_PUT(self) -> None:  # noqa: N802
+        if not self._require_auth():
+            return
         self._proxy("PUT")
 
     def do_DELETE(self) -> None:  # noqa: N802
+        if not self._require_auth():
+            return
         self._proxy("DELETE")
 
     def _proxy(self, method: str) -> None:
@@ -268,9 +343,9 @@ class Handler(BaseHTTPRequestHandler):
             connection.close()
 
     @staticmethod
-    def _validate_setup(payload: dict[str, Any]) -> None:
+    def _validate_setup(payload: dict[str, Any], configured: bool = False) -> None:
         required = ("grafana_admin_password", "influx_admin_password")
-        if any(not str(payload.get(key, "")).strip() for key in required):
+        if not configured and any(not str(payload.get(key, "")).strip() for key in required):
             raise ValueError("Grafana- und InfluxDB-Passwort sind erforderlich")
         for key in ("organization", "bucket", "retention", "grafana_admin_user"):
             if payload.get(key) and len(str(payload[key])) > 100:
@@ -283,13 +358,19 @@ class Handler(BaseHTTPRequestHandler):
 INDEX_HTML = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bocki Grafana AIO</title><style>
-:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#17212b;background:#eef1ed}body{max-width:980px;margin:0 auto;padding:28px}header{border-bottom:1px solid #c9d1c8;margin-bottom:22px}h1{font-size:2rem;margin:0 0 8px;color:#174a4a}section{background:#fff;border:1px solid #d5ddd4;border-radius:8px;padding:20px;margin:14px 0;box-shadow:0 3px 12px #173b3b12}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}label{display:grid;gap:6px;font-size:.9rem}input{padding:10px;border:1px solid #bdc8be;border-radius:5px;font:inherit}button{background:#d85b35;color:#fff;border:0;border-radius:5px;padding:10px 14px;font:inherit;cursor:pointer}button:hover{background:#b94727}.service{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e7e1;padding:12px 0}.muted{color:#607067}#message{min-height:1.5em}</style></head>
+:root{font-family:ui-sans-serif,system-ui,sans-serif;color:#17212b;background:#eef1ed}body{max-width:980px;margin:0 auto;padding:28px}header{border-bottom:1px solid #c9d1c8;margin-bottom:22px}h1{font-size:2rem;margin:0 0 8px;color:#174a4a}section{background:#fff;border:1px solid #d5ddd4;border-radius:8px;padding:20px;margin:14px 0;box-shadow:0 3px 12px #173b3b12}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}label{display:grid;gap:6px;font-size:.9rem}input{padding:10px;border:1px solid #bdc8be;border-radius:5px;font:inherit}button{background:#d85b35;color:#fff;border:0;border-radius:5px;padding:10px 14px;font:inherit;cursor:pointer}button:hover{background:#b94727}button:disabled{opacity:.5;cursor:progress}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 8px;border-top:1px solid #e2e7e1}th{color:#607067;font-weight:600;font-size:.85rem}.muted{color:#607067}#message{min-height:1.5em}.badge{padding:3px 10px;border-radius:12px;font-size:.8rem;background:#e2e7e1;white-space:nowrap}.status-ok{background:#dff3e0;color:#1f7a35}.status-warn{background:#fdf1d8;color:#9a6b06}.status-bad{background:#fbdede;color:#a3272c}.actions button{margin:2px;padding:6px 10px;font-size:.78rem}dialog#logs-modal{width:min(720px,90vw);border:1px solid #d5ddd4;border-radius:8px;padding:16px}#logs-content{white-space:pre-wrap;max-height:60vh;overflow:auto;background:#101a1a;color:#d7e6df;padding:12px;border-radius:6px;font-size:.78rem}</style></head>
 <body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Manager-Updates werden in Unraid über <strong>Force Update</strong> am Container eingespielt.</p></header>
-<section><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" required></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" required></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
-<section><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><div class="grid"><a href="/grafana/" target="_blank" rel="noreferrer">Grafana</a><a href="/influxdb/" target="_blank" rel="noreferrer">InfluxDB</a><a href="/loki/ready" target="_blank" rel="noreferrer">Loki API</a><a href="/alloy/-/ready" target="_blank" rel="noreferrer">Alloy Status</a></div><div id="services"></div></section>
+<section><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
+<section><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
+<dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
 <script>
-async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>`<div class="service"><span><strong>${name}</strong><br><small class="muted">${item.container} &middot; ${item.image}</small></span><span>${item.status}</span></div>`).join('');if(data.docker_error)document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;else if(data.last_error)document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error}
-document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Konfiguration gespeichert, Dienste werden erstellt...';const install=await fetch('/api/install',{method:'POST'});const result=await install.json();document.getElementById('message').textContent=result.error||`${result.created.length} Dienste erstellt.`;state()});state();
+const SERVICE_LINKS={grafana:'/grafana/',influxdb:'/influxdb/',loki:'/loki/ready',alloy:'/alloy/-/ready'};
+let formFilled=false;
+function statusClass(status){const s=status.toLowerCase();if(s.includes('unhealthy')||s.includes('exited')||s==='not-created')return 'status-bad';if(s.includes('starting')||s.includes('restarting'))return 'status-warn';if(s.includes('healthy')||s.startsWith('up'))return 'status-ok';return ''}
+async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>{const link=SERVICE_LINKS[name];const webui=link?`<a href="${link}" target="_blank" rel="noreferrer">Oeffnen</a>`:'&ndash;';const actions=['start','stop','restart','update','logs'].map(action=>`<button data-service="${name}" data-action="${action}">${action}</button>`).join('');return `<tr><td><strong>${name}</strong></td><td>${webui}</td><td><small class="muted">${item.container} &middot; ${item.image}</small></td><td><span class="badge ${statusClass(item.status)}">${item.status}</span></td><td class="actions">${actions}</td></tr>`}).join('');if(data.docker_error)document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;else if(data.last_error)document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error;if(!formFilled){for(const [key,value] of Object.entries(data.config)){const field=document.querySelector(`#setup [name="${key}"]`);if(field&&field.type!=='password')field.value=value}formFilled=true}}
+document.getElementById('services').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;const service=button.dataset.service,action=button.dataset.action;if(action==='logs'){const response=await fetch(`/api/services/${service}/logs`);const data=await response.json();document.getElementById('logs-title').textContent=`Logs: ${service}`;document.getElementById('logs-content').textContent=data.logs||data.error||'(keine Ausgabe)';document.getElementById('logs-modal').showModal();return}button.disabled=true;const response=await fetch(`/api/services/${service}/${action}`,{method:'POST'});const data=await response.json();button.disabled=false;if(data.error){document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent=action==='update'?(data.update_available?`Neues Image fuer ${service} heruntergeladen - Neustart empfohlen.`:`${service} ist bereits aktuell.`):`${service}: ${action} ausgefuehrt.`;state()});
+document.getElementById('logs-close').addEventListener('click',()=>document.getElementById('logs-modal').close());
+document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Konfiguration gespeichert, Dienste werden erstellt...';const install=await fetch('/api/install',{method:'POST'});const result=await install.json();document.getElementById('message').textContent=result.error||`${result.created.length} Dienste erstellt.`;state()});setInterval(state,5000);state();
 </script></body></html>"""
 
 
@@ -324,6 +405,7 @@ def main() -> None:
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
     print(f"Bocki Grafana AIO version={os.getenv('AIO_VERSION', 'unknown')}")
     print(f"Bocki Grafana AIO listening on {args.bind}:{args.port}")
+    print(f"Manager-Login: Benutzer={manager.admin_user} Passwort={manager.admin_password}")
     print("Running processes:")
     for process in running_processes():
         print(f"  {process}")
