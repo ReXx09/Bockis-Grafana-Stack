@@ -195,6 +195,11 @@ class ManagerTests(unittest.TestCase):
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)
             self.assertEqual(sum(call[0] == "create" for call in docker.calls), 5)
+            specs = [call[2] for call in docker.calls if call[0] == "create"]
+            checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
+            self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
+            loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
+            self.assertEqual(loki_spec["User"], "0")
 
     def test_reinstall_recreates_services_and_keeps_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -215,11 +220,38 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(persistent.read_text(encoding="utf-8"), "keep")
             self.assertTrue((root / "data" / "backups").exists())
 
-            specs = [call[2] for call in docker.calls if call[0] == "create"]
-            checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
-            self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
-            loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
-            self.assertEqual(loki_spec["User"], "0")
+    def test_custom_telegraf_config_survives_provisioning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana123", "influx_admin_password": "influx123"})
+            host_data = root / "host"
+            manager.config["host_data_dir"] = str(host_data)
+            custom = "[agent]\n  interval = \"5s\"\n"
+
+            manager.save_telegraf_config(custom)
+
+            active = host_data / "generated" / "telegraf.conf"
+            self.assertEqual(active.read_text(encoding="utf-8"), custom)
+
+    def test_invalid_telegraf_config_is_rejected_before_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.config["host_data_dir"] = str(root / "host")
+            custom_path = root / "host" / "telegraf.custom.conf"
+            invalid = "[agent\n  interval = \"5s\"\n"
+
+            with self.assertRaisesRegex(ValueError, "Ungueltige Telegraf-TOML"):
+                manager.save_telegraf_config(invalid)
+
+            self.assertFalse(custom_path.exists())
 
     def test_filterlog_parser_extracts_firewall_event(self):
         message = "<134>Aug 25 12:00:00 firewall filterlog: 1,,,1000000103,igb0,match,block,in,4,0x0,,64,0,0,none,17,udp,60,203.0.113.10,192.0.2.20,4444,443"

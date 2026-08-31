@@ -9,13 +9,14 @@ import json
 import os
 import secrets
 import shutil
+import tomllib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 from .docker_api import DockerApiError, DockerClient
-from .orchestrator import StackOrchestrator
+from .orchestrator import StackOrchestrator, telegraf_config
 from .services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
 
 MONITORING_NETWORK = "bocki-monitoring"
@@ -241,6 +242,35 @@ class Manager:
             raise DockerUnavailable("Docker-Socket nicht gefunden; Manager mit /var/run/docker.sock starten")
         return self.docker.logs(f"bocki-aio-{service}", tail=tail)
 
+    def telegraf_config(self) -> str:
+        path = Path(self.config.get("host_data_dir", DEFAULT_CONFIG["host_data_dir"])) / "telegraf.custom.conf"
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+        return telegraf_config(self.config)
+
+    def save_telegraf_config(self, content: str) -> str:
+        if not content.strip():
+            raise ValueError("Telegraf-Konfiguration darf nicht leer sein")
+        if len(content.encode("utf-8")) > 512_000:
+            raise ValueError("Telegraf-Konfiguration ist zu gross")
+        try:
+            tomllib.loads(content)
+        except tomllib.TOMLDecodeError as error:
+            raise ValueError(f"Ungueltige Telegraf-TOML: {error}") from error
+        host_data_dir = Path(self.config.get("host_data_dir", DEFAULT_CONFIG["host_data_dir"]))
+        host_data_dir.mkdir(parents=True, exist_ok=True)
+        custom_path = host_data_dir / "telegraf.custom.conf"
+        backup_dir = self.data_dir / "backups" / "telegraf"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        if custom_path.exists():
+            backup_path = backup_dir / f"telegraf-{secrets.token_hex(6)}.conf"
+            shutil.copy2(custom_path, backup_path)
+        custom_path.write_text(content, encoding="utf-8")
+        StackOrchestrator(self.data_dir, host_data_dir, self.docker).provision_files(self.config)
+        if self.docker.container_exists("bocki-aio-telegraf"):
+            self.docker.action("bocki-aio-telegraf", "restart")
+        return str(custom_path)
+
 
 class Handler(BaseHTTPRequestHandler):
     manager: Manager
@@ -284,6 +314,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/state":
             self._send(HTTPStatus.OK, self.manager.state())
             return
+        if self.path == "/api/config/telegraf":
+            self._send(HTTPStatus.OK, {"config": self.manager.telegraf_config()})
+            return
         if self.path in {"/", "/index.html"}:
             body = INDEX_HTML.encode("utf-8")
             self.send_response(HTTPStatus.OK)
@@ -319,6 +352,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._validate_setup(payload, bool(self.manager.config.get("configured")))
                 self.manager.save_config(payload)
                 self._send(HTTPStatus.OK, self.manager.state())
+                return
+            if self.path == "/api/config/telegraf":
+                path = self.manager.save_telegraf_config(str(payload.get("config", "")))
+                self._send(HTTPStatus.OK, {"status": "saved", "path": path})
                 return
             if self.path == "/api/install":
                 self._send(HTTPStatus.OK, self.manager.install_stack())
@@ -397,6 +434,7 @@ INDEX_HTML = """<!doctype html>
 <body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Manager-Updates werden in Unraid über <strong>Force Update</strong> am Container eingespielt.</p></header>
 <section><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p><h3>Live-Log</h3><pre id="live-log">Noch keine Aktionen.</pre></section>
 <section><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button id="reinstall" type="button">Stack neu erstellen</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
+<section><h2>Telegraf-Konfiguration</h2><p class="muted">Die aktive Konfiguration wird vor dem Speichern gesichert und nach dem Speichern neu geladen.</p><textarea id="telegraf-config" rows="20" spellcheck="false" style="width:100%;box-sizing:border-box;font:12px monospace;padding:10px;border:1px solid #bdc8be;border-radius:5px"></textarea><p><button id="telegraf-load" type="button">Laden</button> <button id="telegraf-save" type="button">Speichern und neu starten</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
 <script>
 const SERVICE_LINKS={grafana:'/grafana/'};
@@ -407,6 +445,9 @@ function statusClass(status){const s=status.toLowerCase();if(s.includes('unhealt
 async function state(){const response=await fetch('/api/state');const data=await response.json();document.getElementById('services').innerHTML=Object.entries(data.services).map(([name,item])=>{const link=SERVICE_LINKS[name]||(DIRECT_PORTS[name]?`http://${location.hostname}:${data.config[DIRECT_PORTS[name]]}/`:'');const webui=link?`<a href="${link}" target="_blank" rel="noreferrer">Oeffnen</a>`:'&ndash;';const actions=['start','stop','restart','update','logs'].map(action=>`<button data-service="${name}" data-action="${action}">${action}</button>`).join('');return `<tr><td><strong>${name}</strong></td><td>${webui}</td><td><small class="muted">${item.container} &middot; ${item.image}</small></td><td><span class="badge ${statusClass(item.status)}">${item.status}</span></td><td class="actions">${actions}</td></tr>`}).join('');if(data.docker_error){document.getElementById('message').textContent='Docker-Fehler: '+data.docker_error;logEvent('Docker-Fehler: '+data.docker_error)}else if(data.last_error){document.getElementById('message').textContent='Letzter Installationsfehler: '+data.last_error;logEvent('Installationsfehler: '+data.last_error)}if(!formFilled){for(const [key,value] of Object.entries(data.config)){const field=document.querySelector(`#setup [name="${key}"]`);if(field&&field.type!=='password')field.value=value}formFilled=true}}
 document.getElementById('services').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;const service=button.dataset.service,action=button.dataset.action;if(action==='logs'){const response=await fetch(`/api/services/${service}/logs`);const data=await response.json();document.getElementById('logs-title').textContent=`Logs: ${service}`;document.getElementById('logs-content').textContent=data.logs||data.error||'(keine Ausgabe)';document.getElementById('logs-modal').showModal();logEvent(data.error?`${service}: Log-Fehler: ${data.error}`:`Logs von ${service} geladen`);return}button.disabled=true;const response=await fetch(`/api/services/${service}/${action}`,{method:'POST'});const data=await response.json();button.disabled=false;if(data.error){document.getElementById('message').textContent=data.error;logEvent(`${service}: ${action} fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent=action==='update'?(data.update_available?`Neues Image fuer ${service} heruntergeladen - Neustart empfohlen.`:`${service} ist bereits aktuell.`):`${service}: ${action} ausgefuehrt.`;logEvent(document.getElementById('message').textContent);state()});
 document.getElementById('logs-close').addEventListener('click',()=>document.getElementById('logs-modal').close());
+async function loadTelegraf(){const response=await fetch('/api/config/telegraf');const data=await response.json();if(data.error){logEvent('Telegraf-Laden fehlgeschlagen: '+data.error);return}document.getElementById('telegraf-config').value=data.config;logEvent('Telegraf-Konfiguration geladen')}
+document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
+document.getElementById('telegraf-save').addEventListener('click',async()=>{const button=document.getElementById('telegraf-save');button.disabled=true;const response=await fetch('/api/config/telegraf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:document.getElementById('telegraf-config').value})});const data=await response.json();button.disabled=false;if(data.error){logEvent('Telegraf-Speichern fehlgeschlagen: '+data.error);document.getElementById('message').textContent=data.error;return}logEvent('Telegraf-Konfiguration gespeichert und Telegraf neu gestartet');document.getElementById('message').textContent='Telegraf-Konfiguration gespeichert und neu gestartet.'});loadTelegraf();
 document.getElementById('reinstall').addEventListener('click',async()=>{if(!confirm('Alle fuenf Fachcontainer werden entfernt und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?'))return;const button=document.getElementById('reinstall');button.disabled=true;document.getElementById('message').textContent='Stack wird neu erstellt...';logEvent('Stack-Neuaufbau gestartet');const response=await fetch('/api/reinstall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});const data=await response.json();button.disabled=false;document.getElementById('message').textContent=data.error||`Stack neu erstellt. Backup: ${data.backup}`;logEvent(data.error?`Stack-Neuaufbau fehlgeschlagen: ${data.error}`:`${data.recreated.length} Dienste neu erstellt; Backup: ${data.backup}`);state()});
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;logEvent(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';logEvent('Konfiguration erfolgreich gespeichert');document.getElementById('message').textContent+=' Containerstatus wird geprueft...';const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;logEvent(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;logEvent(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
 </script></body></html>"""

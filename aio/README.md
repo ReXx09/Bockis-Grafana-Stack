@@ -25,3 +25,7 @@ Pro Dienst stehen in der Tabelle Buttons fuer Start/Stop/Restart/Update sowie ei
 ## Stack neu erstellen
 
 Der Button **Stack neu erstellen** entfernt und erstellt die fuenf vom Manager verwalteten Fachcontainer mit den aktuellen Images und der aktuellen Konfiguration neu. Vorher werden `config.json`, das Admin-Geheimnis und die generierten Dateien unter `/data/backups/` gesichert. Die persistenten Bind-Mounts unter `AIO_HOST_DATA_DIR` werden nicht geloescht. Der Manager-Container selbst bleibt unter Kontrolle von Unraid und wird durch diese Funktion nicht ersetzt.
+
+## Telegraf-Konfiguration
+
+Im Bereich **Telegraf-Konfiguration** kann die aktive Konfiguration geladen und bearbeitet werden. Beim Speichern wird die TOML-Syntax geprüft, die vorherige benutzerdefinierte Datei unter `/data/backups/telegraf/` gesichert und der Inhalt persistent als `telegraf.custom.conf` unter `AIO_HOST_DATA_DIR` abgelegt. Anschliessend wird die generierte Konfiguration aktualisiert und der Telegraf-Container neu gestartet. Die benutzerdefinierte Datei hat auch nach einem Stack-Neuaufbau Vorrang vor der Standardkonfiguration.

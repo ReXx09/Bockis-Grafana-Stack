@@ -27,10 +27,12 @@ class StackOrchestrator:
             directory = self.host_data_dir / name
             directory.mkdir(parents=True, exist_ok=True)
             directory.chmod(0o777)
+        custom_telegraf = self.host_data_dir / "telegraf.custom.conf"
+        telegraf_content = custom_telegraf.read_text(encoding="utf-8") if custom_telegraf.exists() else telegraf_config(config)
         files = {
             "loki-config.yml": LOKI_CONFIG,
             "alloy-config.alloy": ALLOY_CONFIG,
-            "telegraf.conf": telegraf_config(config),
+            "telegraf.conf": telegraf_content,
             "grafana-datasource.yml": grafana_datasource(config),
             "grafana-dashboards.yml": GRAFANA_DASHBOARDS,
             "opnsense-firewall-v1.json": dashboard_json(),
