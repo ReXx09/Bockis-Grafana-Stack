@@ -155,6 +155,7 @@ class Manager:
         try:
             if hasattr(self.docker, "connect_network"):
                 self.docker.connect_network(MONITORING_NETWORK, "bocki-grafana-aio")
+                self.docker.connect_network(MONITORING_NETWORK, container_name)
             details = self.docker.inspect(container_name)
             networks = details.get("NetworkSettings", {}).get("Networks", {})
             network = networks.get(MONITORING_NETWORK, {})
