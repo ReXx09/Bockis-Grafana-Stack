@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>bocki-grafana-aio</Name>
-  <Repository>ghcr.io/rexx09/bockis-grafana-aio:0.1.6</Repository>
+  <Repository>ghcr.io/rexx09/bockis-grafana-aio:latest</Repository>
   <Registry>https://ghcr.io</Registry>
   <Network>bridge</Network>
   <MyIP />
