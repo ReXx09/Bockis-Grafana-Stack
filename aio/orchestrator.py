@@ -116,6 +116,8 @@ class StackOrchestrator:
             spec["User"] = "0"
         if service == "loki":
             spec["User"] = "0"
+        if service == "influxdb":
+            spec["User"] = "0"
         healthcheck = SERVICE_DEFINITIONS[service].get("healthcheck")
         if healthcheck:
             spec["Healthcheck"] = {"Test": healthcheck, "Interval": 30_000_000_000, "Timeout": 10_000_000_000, "Retries": 5, "StartPeriod": 20_000_000_000}
