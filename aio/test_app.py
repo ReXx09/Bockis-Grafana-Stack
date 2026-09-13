@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 from aio.app import Handler, Manager, running_processes
 from aio.docker_api import DockerApiError, DockerClient
 from aio.filterlog import FilterlogParseError, parse_filterlog
+from aio.orchestrator import SERVICE_ICONS
 from aio.services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
 
 
@@ -245,6 +246,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("stage.structured_metadata", alloy)
             self.assertEqual(sum(call[0] == "create" for call in docker.calls), 5)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
+            self.assertEqual({spec["Labels"]["net.unraid.docker.icon"] for spec in specs}, set(SERVICE_ICONS.values()))
             checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
             self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
             loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")

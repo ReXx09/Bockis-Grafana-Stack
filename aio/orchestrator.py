@@ -11,6 +11,14 @@ from .services import SERVICE_DEFINITIONS
 
 NETWORK_NAME = "bocki-monitoring"
 
+SERVICE_ICONS = {
+    "grafana": "https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg",
+    "influxdb": "https://www.vectorlogo.zone/logos/influxdata/influxdata-icon.svg",
+    "telegraf": "https://raw.githubusercontent.com/influxdata/telegraf/master/assets/TelegrafTigerSmall.png",
+    "loki": "https://raw.githubusercontent.com/grafana/loki/main/docs/sources/logo_and_name.png",
+    "alloy": "https://raw.githubusercontent.com/grafana/alloy/main/docs/sources/assets/logo_alloy_dark.svg",
+}
+
 
 class StackOrchestrator:
     def __init__(self, data_dir: Path, host_data_dir: Path, docker: Any) -> None:
@@ -128,6 +136,7 @@ class StackOrchestrator:
         spec = {
             "Image": image,
             "Env": environment,
+            "Labels": {"net.unraid.docker.icon": SERVICE_ICONS[service]},
             "HostConfig": {"Binds": binds, "RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": ports, "NetworkMode": NETWORK_NAME},
             "NetworkingConfig": {"EndpointsConfig": {NETWORK_NAME: {"Aliases": [service]}}},
         }
