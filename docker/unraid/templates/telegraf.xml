@@ -13,7 +13,7 @@
   <Category>Network:Management</Category>
   <WebUI/>
   <TemplateURL/>
-  <Icon>https://www.vectorlogo.zone/logos/influxdata/influxdata-icon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/influxdata/telegraf/master/assets/TelegrafTigerSmall.png</Icon>
   <ExtraParams/>
   <PostArgs>--config /etc/telegraf/telegraf.conf</PostArgs>
   <CPUset/>

@@ -13,7 +13,7 @@
   <Category>Network:Management</Category>
   <WebUI>http://[IP]:[PORT:12345]</WebUI>
   <TemplateURL/>
-  <Icon>https://grafana.com/static/assets/img/fav32.png</Icon>
+  <Icon>https://raw.githubusercontent.com/grafana/alloy/main/docs/sources/assets/logo_alloy_dark.svg</Icon>
   <ExtraParams/>
   <PostArgs>run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy</PostArgs>
   <CPUset/>

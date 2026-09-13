@@ -13,7 +13,7 @@
   <Category>Network:Management</Category>
   <WebUI/>
   <TemplateURL/>
-  <Icon>https://grafana.com/static/assets/img/fav32.png</Icon>
+  <Icon>https://raw.githubusercontent.com/grafana/loki/main/docs/sources/logo_and_name.png</Icon>
   <ExtraParams/>
   <PostArgs>-config.file=/etc/loki/config.yml</PostArgs>
   <CPUset/>

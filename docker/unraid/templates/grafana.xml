@@ -13,7 +13,7 @@
   <Category>Network:Management</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL/>
-  <Icon>https://grafana.com/static/assets/img/blog/mixed_styles.png</Icon>
+  <Icon>https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
