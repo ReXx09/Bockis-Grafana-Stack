@@ -13,7 +13,7 @@
   <Category>Network:Management</Category>
   <WebUI>http://[IP]:[PORT:8086]</WebUI>
   <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/influxdata/branding/master/img/downloads/influxdata-logo--symbol--pool-alpha.png</Icon>
+  <Icon>https://www.vectorlogo.zone/logos/influxdata/influxdata-icon.svg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>

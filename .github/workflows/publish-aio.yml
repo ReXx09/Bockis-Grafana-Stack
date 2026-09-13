@@ -19,6 +19,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate manager and Unraid templates
+        run: |
+          python -m unittest aio.test_app -q
+          python -c "import glob, xml.etree.ElementTree as ET; files=glob.glob('docker/unraid/templates/*.xml'); roots=[ET.parse(path).getroot() for path in files]; assert files and all(root.findtext('Icon') for root in roots)"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
