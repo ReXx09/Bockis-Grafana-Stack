@@ -142,6 +142,14 @@ class DockerClient:
         _, body = self._transact("GET", path)
         return self._demux_logs(body)
 
+    def exec_run(self, name: str, cmd: list[str]) -> str:
+        created = self.request("POST", f"/containers/{quote(name, safe='')}/exec", {"Cmd": cmd, "AttachStdout": True, "AttachStderr": True})
+        exec_id = created.get("Id", "") if isinstance(created, dict) else ""
+        if not exec_id:
+            raise DockerApiError("Exec-Instanz konnte nicht erstellt werden")
+        _, body = self._transact("POST", f"/exec/{quote(exec_id, safe='')}/start", {"Detach": False, "Tty": False})
+        return self._demux_logs(body)
+
     @staticmethod
     def _demux_logs(raw: bytes) -> str:
         if not raw:

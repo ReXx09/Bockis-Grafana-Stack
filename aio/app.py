@@ -105,6 +105,17 @@ class Manager:
         config.setdefault("influx_admin_token", secrets.token_urlsafe(32))
         self.config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
         self.config = config
+        new_password = str(values.get("grafana_admin_password", "")).strip()
+        if new_password:
+            self._sync_grafana_admin_password(new_password)
+
+    def _sync_grafana_admin_password(self, password: str) -> None:
+        if not Path(self.docker.socket_path).exists():
+            return
+        try:
+            self.docker.exec_run("bocki-aio-grafana", ["grafana-cli", "admin", "reset-admin-password", password])
+        except (OSError, DockerApiError, ValueError, AttributeError):
+            pass
 
     def install_stack(self) -> dict[str, Any]:
         if not self.config.get("configured"):
