@@ -19,6 +19,13 @@ SERVICE_ICONS = {
     "alloy": "https://raw.githubusercontent.com/grafana/alloy/main/docs/sources/assets/logo_alloy_dark.svg",
 }
 
+SERVICE_WEBUIS = {
+    "grafana": "http://[IP]:[PORT:3000]",
+    "influxdb": "http://[IP]:[PORT:8086]",
+    "loki": "http://[IP]:[PORT:3100]",
+    "alloy": "http://[IP]:[PORT:12345]",
+}
+
 
 class StackOrchestrator:
     def __init__(self, data_dir: Path, host_data_dir: Path, docker: Any) -> None:
@@ -133,10 +140,16 @@ class StackOrchestrator:
             add_port(ports, exposed, 5514, config.get("syslog_port", 5514), "udp")
             add_port(ports, exposed, 12345, config.get("alloy_port", 12345), "tcp")
 
+        labels = {
+            "net.unraid.docker.managed": "dockerman",
+            "net.unraid.docker.icon": SERVICE_ICONS[service],
+        }
+        if service in SERVICE_WEBUIS:
+            labels["net.unraid.docker.webui"] = SERVICE_WEBUIS[service]
         spec = {
             "Image": image,
             "Env": environment,
-            "Labels": {"net.unraid.docker.icon": SERVICE_ICONS[service]},
+            "Labels": labels,
             "HostConfig": {"Binds": binds, "RestartPolicy": {"Name": "unless-stopped"}, "PortBindings": ports, "NetworkMode": NETWORK_NAME},
             "NetworkingConfig": {"EndpointsConfig": {NETWORK_NAME: {"Aliases": [service]}}},
         }

@@ -4,7 +4,7 @@ WORKDIR /app
 COPY aio /app/aio
 
 ENV PYTHONUNBUFFERED=1
-ENV AIO_VERSION=0.3.1
+ENV AIO_VERSION=0.3.2
 EXPOSE 8800
 
 ENTRYPOINT ["python", "-m", "aio.app"]

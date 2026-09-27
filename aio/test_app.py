@@ -247,6 +247,9 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(sum(call[0] == "create" for call in docker.calls), 5)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             self.assertEqual({spec["Labels"]["net.unraid.docker.icon"] for spec in specs}, set(SERVICE_ICONS.values()))
+            self.assertTrue(all(spec["Labels"]["net.unraid.docker.managed"] == "dockerman" for spec in specs))
+            grafana_spec = next(spec for spec in specs if spec["Image"] == "grafana/grafana:11.5.2")
+            self.assertEqual(grafana_spec["Labels"]["net.unraid.docker.webui"], "http://[IP]:[PORT:3000]")
             checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
             self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
             loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
