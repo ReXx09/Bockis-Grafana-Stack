@@ -121,11 +121,13 @@ class StackOrchestrator:
                 f"{self.host_generated_dir / 'grafana-dashboards.yml'}:/etc/grafana/provisioning/dashboards/dashboards.yml:ro",
                 f"{self.host_generated_dir / 'opnsense-firewall-v1.json'}:/var/lib/grafana/dashboards/opnsense-firewall-v1.json:ro",
             ]
+            public_host = str(config.get("public_host", "")).strip()
+            root_url = f"http://{public_host}:8800/grafana/" if public_host else "%(protocol)s://%(domain)s/grafana/"
             environment += [
                 f"GF_SECURITY_ADMIN_USER={config['grafana_admin_user']}",
                 f"GF_SECURITY_ADMIN_PASSWORD={config['grafana_admin_password']}",
                 "GF_USERS_ALLOW_SIGN_UP=false",
-                "GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/",
+                f"GF_SERVER_ROOT_URL={root_url}",
                 "GF_SERVER_SERVE_FROM_SUB_PATH=true",
             ]
             add_port(ports, exposed, 3000, config.get("grafana_port", 3000), "tcp")

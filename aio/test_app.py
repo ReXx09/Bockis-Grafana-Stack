@@ -241,6 +241,21 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(manager.proxy_target("/grafana/"), ("bocki-aio-grafana", 3000, "/"))
 
+    def test_grafana_root_url_uses_configured_public_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx", "host_data_dir": str(root / "host"), "public_host": "192.168.8.111"})
+
+            manager.install_stack()
+
+            specs = [call[2] for call in docker.calls if call[0] == "create"]
+            grafana_spec = next(spec for spec in specs if spec["Image"] == "grafana/grafana:11.5.2")
+            self.assertIn("GF_SERVER_ROOT_URL=http://192.168.8.111:8800/grafana/", grafana_spec["Env"])
+
     def test_install_creates_all_services_and_configs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
