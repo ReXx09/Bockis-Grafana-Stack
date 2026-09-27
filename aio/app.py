@@ -548,6 +548,7 @@ def main() -> None:
     Handler.manager = manager
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
     print(f"Bocki Grafana AIO version={os.getenv('AIO_VERSION', 'unknown')}")
+    print(f"Bocki Grafana AIO commit={os.getenv('AIO_COMMIT', 'unknown')}")
     print(f"Bocki Grafana AIO listening on {args.bind}:{args.port}")
     print(f"Manager-Login: Benutzer={manager.admin_user} Passwort={manager.admin_password}")
     print("Running processes:")
