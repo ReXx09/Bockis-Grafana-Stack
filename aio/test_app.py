@@ -348,6 +348,11 @@ class ManagerTests(unittest.TestCase):
             system_payload = json.loads(system_dashboard.read_text(encoding="utf-8"))
             self.assertEqual(system_payload["uid"], "bocki-system-metrics")
             self.assertIn('from(bucket: "homelab")', system_payload["panels"][0]["targets"][0]["query"])
+            unified_dashboard = root / "data" / "generated" / "bocki-all-in-one-v1.json"
+            unified_payload = json.loads(unified_dashboard.read_text(encoding="utf-8"))
+            self.assertEqual(unified_payload["uid"], "bocki-all-in-one")
+            self.assertEqual([panel["title"] for panel in unified_payload["panels"]], ["Uebersicht", "System", "Docker", "Netzwerk", "OPNsense", "Firewall"])
+            self.assertIn("count_over_time", json.dumps(unified_payload))
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

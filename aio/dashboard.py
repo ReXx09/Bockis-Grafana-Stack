@@ -58,6 +58,83 @@ def system_dashboard_json(bucket: str) -> str:
     return json.dumps(dashboard, indent=2) + "\n"
 
 
+def unified_dashboard_json(bucket: str) -> str:
+    panels = [
+        dashboard_section(1, "Uebersicht", [
+            system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
+            system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
+            system_stat(103, "Laufende Container", 12, 0, bucket, "docker", "n_containers_running"),
+            loki_stat(104, "Geblockte Firewall-Ereignisse", "action=\"block\"", "red"),
+        ]),
+        dashboard_section(2, "System", [
+            system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
+            system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
+            system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
+        ]),
+        dashboard_section(3, "Docker", [
+            system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
+            system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name"),
+        ]),
+        dashboard_section(4, "Netzwerk", [
+            system_timeseries(401, "Empfangene Daten (Bytes/s)", 0, 0, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
+            system_timeseries(402, "Gesendete Daten (Bytes/s)", 12, 0, bucket, "net", "bytes_sent", group_by="interface", derivative=True),
+        ]),
+        dashboard_section(5, "OPNsense", [
+            system_timeseries(501, "Firewall CPU (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
+            system_timeseries(502, "Firewall RAM (%)", 12, 0, bucket, "mem", "used_percent"),
+            system_timeseries(503, "Firewall Netzwerk", 0, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
+        ]),
+        dashboard_section(6, "Firewall", [
+            loki_timeseries(601, "Pass / Block im Zeitverlauf", 0, 0),
+            loki_logs(602, "Firewall-Ereignisse", 12, 0),
+        ]),
+    ]
+    dashboard = {
+        "uid": "bocki-all-in-one",
+        "title": "Bocki Gesamtuebersicht",
+        "tags": ["bocki", "overview", "system", "firewall"],
+        "timezone": "browser",
+        "schemaVersion": 39,
+        "version": 1,
+        "refresh": "30s",
+        "time": {"from": "now-6h", "to": "now"},
+        "templating": {"list": []},
+        "panels": panels,
+    }
+    return json.dumps(dashboard, indent=2) + "\n"
+
+
+def dashboard_section(panel_id: int, title: str, panels: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"id": panel_id, "type": "row", "title": title, "collapsed": False, "panels": panels}
+
+
+def loki_stat(panel_id: int, title: str, selector: str, color: str) -> dict[str, Any]:
+    return {
+        "id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "datasource": {"type": "loki", "uid": "Loki"},
+        "targets": [{"refId": "A", "expr": f'sum(count_over_time({{{selector}}}[$__range]))', "queryType": "range"}],
+        "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "fixed", "fixedColor": color}}, "overrides": []},
+    }
+
+
+def loki_timeseries(panel_id: int, title: str, x: int, y: int) -> dict[str, Any]:
+    return {
+        "id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y},
+        "datasource": {"type": "loki", "uid": "Loki"},
+        "targets": [{"refId": "A", "expr": 'sum by (action) (count_over_time({service="filterlog"}[$__interval]))', "queryType": "range"}],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+    }
+
+
+def loki_logs(panel_id: int, title: str, x: int, y: int) -> dict[str, Any]:
+    return {
+        "id": panel_id, "type": "logs", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y},
+        "datasource": {"type": "loki", "uid": "Loki"},
+        "targets": [{"refId": "A", "expr": '{service="filterlog"}', "queryType": "range"}],
+        "options": {"showTime": True, "showLabels": True, "wrapLines": False, "sortOrder": "Descending"},
+    }
+
+
 def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False) -> str:
     extra_filter = f" and {filter_extra}" if filter_extra else ""
     query = f'from(bucket: "{bucket}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "{field}"{extra_filter})'
@@ -73,8 +150,8 @@ def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, me
     return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
 
 
-def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str) -> dict[str, Any]:
-    query = _system_flux(bucket, measurement, field)
+def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "") -> dict[str, Any]:
+    query = _system_flux(bucket, measurement, field, filter_extra)
     return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
 
 
