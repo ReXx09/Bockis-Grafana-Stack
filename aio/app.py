@@ -14,6 +14,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from .docker_api import DockerApiError, DockerClient
 from .orchestrator import StackOrchestrator, telegraf_config
@@ -448,12 +449,23 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0"))) if method in {"POST", "PUT", "DELETE"} else None
         connection = http.client.HTTPConnection(hostname, port, timeout=10)
         try:
-            connection.request(method, path + ("?" + query if query else ""), body=body, headers={"Content-Type": self.headers.get("Content-Type", "application/octet-stream")})
+            request_host = self.headers.get("Host", "")
+            proxy_headers = {
+                "Content-Type": self.headers.get("Content-Type", "application/octet-stream"),
+                "Host": request_host,
+                "X-Forwarded-Host": request_host,
+                "X-Forwarded-Proto": self.headers.get("X-Forwarded-Proto", "http"),
+            }
+            connection.request(method, path + ("?" + query if query else ""), body=body, headers=proxy_headers)
             response = connection.getresponse()
             payload = response.read()
             self.send_response(response.status)
             for key, value in response.getheaders():
                 if key.lower() not in {"connection", "content-length", "transfer-encoding"}:
+                    if key.lower() == "location" and route.startswith("/grafana") and request_host:
+                        location = urlsplit(value)
+                        if location.hostname in {"localhost", "127.0.0.1", "bocki-aio-grafana"}:
+                            value = urlunsplit((self.headers.get("X-Forwarded-Proto", "http"), request_host, location.path or "/", location.query, location.fragment))
                     if key.lower() == "location" and route.startswith("/grafana") and value.startswith("/") and not value.startswith("/grafana"):
                         value = "/grafana" + value
                     self.send_header(key, value)
