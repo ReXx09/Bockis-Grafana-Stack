@@ -430,6 +430,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(response.status)
             for key, value in response.getheaders():
                 if key.lower() not in {"connection", "content-length", "transfer-encoding"}:
+                    if key.lower() == "location" and route.startswith("/grafana") and value.startswith("/") and not value.startswith("/grafana"):
+                        value = "/grafana" + value
                     self.send_header(key, value)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -468,7 +470,8 @@ INDEX_HTML = """<!doctype html>
 <section id="central-log"><h2>Zentrales Live-Log</h2><p id="progress">Bereit.</p><pre id="live-log">Noch keine Aktionen.</pre><p><button id="clear-log" type="button">Log leeren</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
 <script>
-const SERVICE_LINKS={grafana:'/grafana/'};
+const managerOrigin=location.port&&location.port!=='80'?location.origin:`http://${location.hostname}:8800`;
+const SERVICE_LINKS={grafana:`${managerOrigin}/grafana/`};
 const DIRECT_PORTS={influxdb:'influxdb_port',loki:'loki_port',alloy:'alloy_port'};
 let formFilled=false;
 const logStorageKey='bocki-aio-live-log';
