@@ -218,6 +218,21 @@ class ManagerTests(unittest.TestCase):
             manager.save_config({"grafana_admin_password": "newpass123", "influx_admin_password": "influx123"})
 
             self.assertIn(("exec", "bocki-aio-grafana", ["grafana-cli", "admin", "reset-admin-password", "newpass123"]), docker.calls)
+            self.assertTrue(any(call[0] == "exec" and call[1] == "bocki-aio-influxdb" and "password" in call[2] for call in docker.calls))
+
+    def test_save_config_reports_changed_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            result = manager.save_config({"grafana_admin_password": "first123", "influx_admin_password": "influx123", "organization": "custom-org"})
+
+            self.assertIn("organization", result["changed_fields"])
+            self.assertIn("grafana_admin_password", result["changed_fields"])
+            self.assertTrue(result["grafana_password_synced"])
+            self.assertTrue(result["influx_password_synced"])
 
     def test_save_config_skips_password_reset_when_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:
