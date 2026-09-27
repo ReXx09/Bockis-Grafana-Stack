@@ -159,7 +159,7 @@ class ManagerTests(unittest.TestCase):
                 result = manager.webui_check("grafana")
 
             self.assertEqual(result, {"service": "grafana", "reachable": True, "status": 200, "reason": "OK"})
-            connection_class.return_value.request.assert_called_once_with("GET", "/")
+            connection_class.return_value.request.assert_called_once_with("GET", "/grafana/")
 
     def test_webui_check_reports_http_error_and_rejects_unknown_service(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -229,7 +229,7 @@ class ManagerTests(unittest.TestCase):
             socket_path.touch()
             manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
 
-            self.assertEqual(manager.proxy_target("/grafana/"), ("172.30.0.7", 3000, "/"))
+            self.assertEqual(manager.proxy_target("/grafana/"), ("172.30.0.7", 3000, "/grafana/"))
 
     def test_proxy_falls_back_to_managed_container_name(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -239,7 +239,7 @@ class ManagerTests(unittest.TestCase):
             docker.inspect = lambda name: {"NetworkSettings": {"Networks": {}}}
             manager = Manager(Path(directory) / "data", docker)
 
-            self.assertEqual(manager.proxy_target("/grafana/"), ("bocki-aio-grafana", 3000, "/"))
+            self.assertEqual(manager.proxy_target("/grafana/"), ("bocki-aio-grafana", 3000, "/grafana/"))
 
     def test_grafana_root_url_uses_configured_public_host(self):
         with tempfile.TemporaryDirectory() as directory:

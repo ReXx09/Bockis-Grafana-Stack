@@ -169,7 +169,10 @@ class Manager:
                 address = inspected_address
         except (OSError, DockerApiError, ValueError, AttributeError):
             pass
-        return address, ports[service], "/" + (parts[1] if len(parts) == 2 else "")
+        remainder = parts[1] if len(parts) == 2 else ""
+        # Grafana serves from the /grafana sub path itself, so the prefix must reach the container unchanged.
+        path = f"/{service}/{remainder}" if service == "grafana" else "/" + remainder
+        return address, ports[service], path
 
     def state(self) -> dict[str, Any]:
         containers = self._containers_by_service()
