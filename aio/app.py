@@ -356,6 +356,7 @@ class Handler(BaseHTTPRequestHandler):
             body = INDEX_HTML.encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -493,7 +494,7 @@ INDEX_HTML = """<!doctype html>
 <section id="central-log"><h2>Zentrales Live-Log</h2><p id="progress">Bereit.</p><pre id="live-log">Noch keine Aktionen.</pre><p><button id="clear-log" type="button">Log leeren</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
 <script>
-const managerOrigin=location.port&&location.port!=='80'?location.origin:`http://${location.hostname}:8800`;
+const managerOrigin=`${location.protocol}//${location.hostname}:8800`;
 const SERVICE_LINKS={grafana:`${managerOrigin}/grafana/`};
 const DIRECT_PORTS={influxdb:'influxdb_port',loki:'loki_port',alloy:'alloy_port'};
 let formFilled=false;
