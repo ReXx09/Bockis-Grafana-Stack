@@ -56,6 +56,10 @@ class ManagerTests(unittest.TestCase):
             self.calls.append(("logs", name, tail))
             return f"log output for {name}"
 
+        def exec_run(self, name, cmd):
+            self.calls.append(("exec", name, cmd))
+            return ""
+
     def test_fresh_state_contains_only_known_services(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Manager(Path(directory)).state()
@@ -203,6 +207,30 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(first.admin_password, second.admin_password)
             self.assertTrue((data_dir / "admin_password.txt").exists())
+
+    def test_save_config_resets_grafana_admin_password_in_running_container(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            manager.save_config({"grafana_admin_password": "newpass123", "influx_admin_password": "influx123"})
+
+            self.assertIn(("exec", "bocki-aio-grafana", ["grafana-cli", "admin", "reset-admin-password", "newpass123"]), docker.calls)
+
+    def test_save_config_skips_password_reset_when_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+            manager.save_config({"grafana_admin_password": "first123", "influx_admin_password": "influx123"})
+            docker.calls.clear()
+
+            manager.save_config({"grafana_admin_password": "", "organization": "home"})
+
+            self.assertFalse(any(call[0] == "exec" for call in docker.calls))
 
     def test_authentication_accepts_only_correct_credentials(self):
         with tempfile.TemporaryDirectory() as directory:
