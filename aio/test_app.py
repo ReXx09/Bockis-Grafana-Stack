@@ -233,7 +233,7 @@ class ManagerTests(unittest.TestCase):
             socket_path.touch()
             docker = self.FakeDocker(str(socket_path))
             manager = Manager(root / "data", docker)
-            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx"})
+            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx", "host_data_dir": str(root / "host")})
 
             result = manager.install_stack()
 
