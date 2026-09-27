@@ -353,6 +353,15 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(unified_payload["uid"], "bocki-all-in-one")
             self.assertEqual([panel["title"] for panel in unified_payload["panels"]], ["Uebersicht", "System", "Docker", "Netzwerk", "OPNsense", "Firewall"])
             self.assertIn("count_over_time", json.dumps(unified_payload))
+            self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one", "bocki-unraid", "bocki-raspberry", "bocki-opnsense"})
+            for filename, uid, host_filter in (
+                ("bocki-unraid-v1.json", "bocki-unraid", 'r.host == "unraid-host"'),
+                ("bocki-raspberry-v1.json", "bocki-raspberry", "r.host =~ /^raspi/"),
+                ("bocki-opnsense-v1.json", "bocki-opnsense", 'r.host == "opnsense"'),
+            ):
+                payload = json.loads((root / "data" / "generated" / filename).read_text(encoding="utf-8"))
+                self.assertEqual(payload["uid"], uid)
+                self.assertIn(host_filter.replace('"', '\\"'), json.dumps(payload))
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

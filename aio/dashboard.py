@@ -25,6 +25,7 @@ def dashboard_json() -> str:
         "refresh": "30s",
         "time": {"from": "now-6h", "to": "now"},
         "templating": {"list": []},
+        "links": dashboard_switch_links(),
         "panels": panels,
     }
     return json.dumps(dashboard, indent=2) + "\n"
@@ -53,9 +54,68 @@ def system_dashboard_json(bucket: str) -> str:
         "refresh": "30s",
         "time": {"from": "now-6h", "to": "now"},
         "templating": {"list": []},
+        "links": dashboard_switch_links(),
         "panels": panels,
     }
     return json.dumps(dashboard, indent=2) + "\n"
+
+
+def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, include_docker: bool = False, include_temperature: bool = False) -> str:
+    panels: list[dict[str, Any]] = [
+        dashboard_section(1, "Uebersicht", [
+            system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter),
+            system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=host_filter),
+            system_stat(103, "Prozesse", 12, 0, bucket, "processes", "n_total", host_filter=host_filter),
+        ]),
+        dashboard_section(2, "System", [
+            system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter=host_filter),
+            system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent", host_filter=host_filter),
+            system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
+            system_timeseries(204, "Netzwerk Empfang", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True, host_filter=host_filter),
+        ]),
+    ]
+    if include_temperature:
+        panels[1]["panels"].append(system_timeseries(205, "CPU-Temperatur", 0, 16, bucket, "cpu_temperature", "value", host_filter=host_filter))
+    if include_docker:
+        panels.append(dashboard_section(3, "Docker", [
+            system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name", host_filter=host_filter),
+            system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name", host_filter=host_filter),
+        ]))
+    dashboard = {
+        "uid": uid,
+        "title": title,
+        "tags": ["bocki", title.lower().replace(" ", "-"), "telegraf"],
+        "timezone": "browser",
+        "schemaVersion": 39,
+        "version": 1,
+        "refresh": "30s",
+        "time": {"from": "now-6h", "to": "now"},
+        "templating": {"list": []},
+        "links": dashboard_switch_links(),
+        "panels": panels,
+    }
+    return json.dumps(dashboard, indent=2) + "\n"
+
+
+def dashboard_switch_links() -> list[dict[str, Any]]:
+    dashboards = [
+        ("Bocki Gesamtuebersicht", "bocki-all-in-one"),
+        ("Unraid", "bocki-unraid"),
+        ("Raspberry", "bocki-raspberry"),
+        ("OPNsense", "bocki-opnsense"),
+    ]
+    return [{
+        "asDropdown": True,
+        "icon": "external link",
+        "includeVars": False,
+        "keepTime": True,
+        "tags": [],
+        "title": "Bocki Dashboards",
+        "type": "dashboards",
+    }, *[
+        {"title": title, "type": "dashboard", "uid": uid, "keepTime": True, "includeVars": False, "icon": "external link"}
+        for title, uid in dashboards
+    ]]
 
 
 def unified_dashboard_json(bucket: str) -> str:
@@ -99,6 +159,7 @@ def unified_dashboard_json(bucket: str) -> str:
         "refresh": "30s",
         "time": {"from": "now-6h", "to": "now"},
         "templating": {"list": []},
+        "links": dashboard_switch_links(),
         "panels": panels,
     }
     return json.dumps(dashboard, indent=2) + "\n"
@@ -135,8 +196,13 @@ def loki_logs(panel_id: int, title: str, x: int, y: int) -> dict[str, Any]:
     }
 
 
-def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False) -> str:
-    extra_filter = f" and {filter_extra}" if filter_extra else ""
+def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False, host_filter: str = "") -> str:
+    filters = [f'r._measurement == "{measurement}"', f'r._field == "{field}"']
+    if filter_extra:
+        filters.append(filter_extra)
+    if host_filter:
+        filters.append(host_filter)
+    extra_filter = " and " + " and ".join(filters[2:]) if len(filters) > 2 else ""
     query = f'from(bucket: "{bucket}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "{field}"{extra_filter})'
     if derivative:
         query += '\n  |> derivative(unit: 1s, nonNegative: true)'
@@ -145,18 +211,18 @@ def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = 
     return query
 
 
-def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False) -> dict[str, Any]:
-    query = _system_flux(bucket, measurement, field, filter_extra, group_by, derivative)
+def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False, host_filter: str = "") -> dict[str, Any]:
+    query = _system_flux(bucket, measurement, field, filter_extra, group_by, derivative, host_filter)
     return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
 
 
-def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "") -> dict[str, Any]:
-    query = _system_flux(bucket, measurement, field, filter_extra)
+def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", host_filter: str = "") -> dict[str, Any]:
+    query = _system_flux(bucket, measurement, field, filter_extra, host_filter=host_filter)
     return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
 
 
-def system_table(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, group_by: str = "") -> dict[str, Any]:
-    query = _system_flux(bucket, measurement, field, group_by=group_by)
+def system_table(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, group_by: str = "", host_filter: str = "") -> dict[str, Any]:
+    query = _system_flux(bucket, measurement, field, group_by=group_by, host_filter=host_filter)
     return {"id": panel_id, "type": "table", "title": title, "gridPos": {"h": 6, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "options": {"showHeader": True}}
 
 
