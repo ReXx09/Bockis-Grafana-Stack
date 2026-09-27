@@ -297,6 +297,12 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(set(result["created"]), set(SERVICE_DEFINITIONS))
             self.assertTrue((root / "data" / "generated" / "telegraf.conf").exists())
+            specs = [call[2] for call in docker.calls if call[0] == "create"]
+            telegraf_spec = next(spec for spec in specs if spec["Image"] == "telegraf:1.34")
+            self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])
+            telegraf_conf = (root / "data" / "generated" / "telegraf.conf").read_text(encoding="utf-8")
+            self.assertIn("[[inputs.system]]", telegraf_conf)
+            self.assertIn("[[inputs.diskio]]", telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"

@@ -134,7 +134,11 @@ class StackOrchestrator:
             ]
             add_port(ports, exposed, 3000, config.get("grafana_port", 3000), "tcp")
         elif service == "telegraf":
-            binds += [f"{self.host_generated_dir / 'telegraf.conf'}:/etc/telegraf/telegraf.conf:ro", "/var/run/docker.sock:/var/run/docker.sock:ro"]
+            binds += [
+                f"{self.host_generated_dir / 'telegraf.conf'}:/etc/telegraf/telegraf.conf:ro",
+                "/var/run/docker.sock:/var/run/docker.sock:ro",
+                "/mnt:/mnt:ro",
+            ]
             environment += [f"INFLUX_TOKEN={config['influx_admin_token']}", f"INFLUX_ORG={config['organization']}", f"INFLUX_BUCKET={config['bucket']}"]
         elif service == "loki":
             binds += [f"{host / 'loki'}:/loki", f"{self.host_generated_dir / 'loki-config.yml'}:/etc/loki/config.yml:ro"]
@@ -184,7 +188,7 @@ def add_port(bindings: dict[str, list[dict[str, str]]], exposed: dict[str, dict[
 
 
 def telegraf_config(config: dict[str, Any]) -> str:
-    return f'''[agent]\n  interval = "10s"\n  round_interval = true\n  hostname = "bocki-aio"\n\n[[outputs.influxdb_v2]]\n  urls = ["http://influxdb:8086"]\n  token = "{config["influx_admin_token"]}"\n  organization = "{config["organization"]}"\n  bucket = "{config["bucket"]}"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.mem]]\n[[inputs.net]]\n[[inputs.disk]]\n  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]\n[[inputs.docker]]\n  endpoint = "unix:///var/run/docker.sock"\n'''
+    return f'''[agent]\n  interval = "10s"\n  round_interval = true\n  hostname = "bocki-aio"\n\n[[outputs.influxdb_v2]]\n  urls = ["http://influxdb:8086"]\n  token = "{config["influx_admin_token"]}"\n  organization = "{config["organization"]}"\n  bucket = "{config["bucket"]}"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.mem]]\n[[inputs.system]]\n[[inputs.net]]\n[[inputs.disk]]\n  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]\n[[inputs.diskio]]\n[[inputs.docker]]\n  endpoint = "unix:///var/run/docker.sock"\n\n# Optional: USV-Metriken (benoetigt einen laufenden apcupsd auf dem Unraid-Host)\n# [[inputs.apcupsd]]\n#   servers = ["tcp://127.0.0.1:3551"]\n\n# Optional: Mainboard-/CPU-Sensoren (benoetigt lm-sensors auf dem Host und Zugriff auf /sys)\n# [[inputs.sensors]]\n'''
 
 
 def grafana_datasource(config: dict[str, Any]) -> str:
