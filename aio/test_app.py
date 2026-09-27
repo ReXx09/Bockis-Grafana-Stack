@@ -271,6 +271,10 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue((root / "data" / "generated" / "telegraf.conf").exists())
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
+            system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
+            system_payload = json.loads(system_dashboard.read_text(encoding="utf-8"))
+            self.assertEqual(system_payload["uid"], "bocki-system-metrics")
+            self.assertIn('from(bucket: "homelab")', system_payload["panels"][0]["targets"][0]["query"])
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

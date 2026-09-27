@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .dashboard import dashboard_json
+from .dashboard import dashboard_json, system_dashboard_json
 from .services import SERVICE_DEFINITIONS
 
 NETWORK_NAME = "bocki-monitoring"
@@ -51,6 +51,7 @@ class StackOrchestrator:
             "grafana-datasource.yml": grafana_datasource(config),
             "grafana-dashboards.yml": GRAFANA_DASHBOARDS,
             "opnsense-firewall-v1.json": dashboard_json(),
+            "system-metrics-v1.json": system_dashboard_json(config["bucket"]),
         }
         for name, content in files.items():
             (self.generated_dir / name).write_text(content, encoding="utf-8")
@@ -120,6 +121,7 @@ class StackOrchestrator:
                 f"{self.host_generated_dir / 'grafana-datasource.yml'}:/etc/grafana/provisioning/datasources/datasource.yml:ro",
                 f"{self.host_generated_dir / 'grafana-dashboards.yml'}:/etc/grafana/provisioning/dashboards/dashboards.yml:ro",
                 f"{self.host_generated_dir / 'opnsense-firewall-v1.json'}:/var/lib/grafana/dashboards/opnsense-firewall-v1.json:ro",
+                f"{self.host_generated_dir / 'system-metrics-v1.json'}:/var/lib/grafana/dashboards/system-metrics-v1.json:ro",
             ]
             public_host = str(config.get("public_host", "")).strip()
             root_url = f"http://{public_host}:8800/grafana/" if public_host else "%(protocol)s://%(domain)s/grafana/"
