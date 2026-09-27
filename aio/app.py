@@ -500,6 +500,8 @@ class Handler(BaseHTTPRequestHandler):
                 "X-Forwarded-Host": request_host,
                 "X-Forwarded-Proto": self.headers.get("X-Forwarded-Proto", "http"),
             }
+            if self.headers.get("Cookie"):
+                proxy_headers["Cookie"] = self.headers.get("Cookie")
             connection.request(method, path + ("?" + query if query else ""), body=body, headers=proxy_headers)
             response = connection.getresponse()
             payload = response.read()

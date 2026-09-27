@@ -284,6 +284,30 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(manager.proxy_target("/grafana/"), ("bocki-aio-grafana", 3000, "/grafana/"))
 
+    def test_proxy_forwards_client_cookie_to_backend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            manager = Manager(Path(directory) / "data", self.FakeDocker(str(socket_path)))
+            handler = Handler.__new__(Handler)
+            handler.manager = manager
+            handler.headers = {"Host": "192.168.8.111:8800", "Cookie": "grafana_session=abc123"}
+            handler.path = "/grafana/login"
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler.wfile = Mock()
+            response = Mock(status=200, reason="OK")
+            response.getheaders.return_value = []
+            response.read.return_value = b""
+
+            with patch("aio.app.http.client.HTTPConnection") as connection_class:
+                connection_class.return_value.getresponse.return_value = response
+                handler._proxy("GET")
+
+            _, kwargs = connection_class.return_value.request.call_args
+            self.assertEqual(kwargs["headers"]["Cookie"], "grafana_session=abc123")
+
     def test_grafana_root_url_uses_configured_public_host(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
