@@ -24,19 +24,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Validate manager and Unraid templates
-        run: |
-          python -m unittest aio.test_app -q
-          python - <<'PY'
-          import glob
-          import xml.etree.ElementTree as ET
+      - name: Run manager tests
+        run: python -m unittest aio.test_app -q
 
-          files = glob.glob('docker/unraid/templates/*.xml')
-          assert files, 'No Unraid templates found'
-          for path in files:
-              root = ET.parse(path).getroot()
-              assert root.findtext('Icon'), f'Missing Icon in {path}'
-          PY
+      - name: Validate Unraid templates
+        run: >-
+          python -c "import glob, xml.etree.ElementTree as ET; files=glob.glob('docker/unraid/templates/*.xml'); assert files, 'No Unraid templates found'; roots=[ET.parse(path).getroot() for path in files]; assert all(root.findtext('Icon') for root in roots)"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
