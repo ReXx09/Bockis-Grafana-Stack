@@ -235,6 +235,18 @@ class Manager:
         self.docker.action(container_name, action)
         return {"service": service, "action": action, "status": "requested"}
 
+    def stack_action(self, action: str) -> dict[str, Any]:
+        if action not in {"start", "stop", "restart"}:
+            raise ValueError("Nicht erlaubte Stack-Aktion")
+        services = list(SERVICE_DEFINITIONS)
+        if action == "stop":
+            services.reverse()
+        completed = []
+        for service in services:
+            self.service_action(service, action)
+            completed.append(service)
+        return {"action": action, "services": completed, "status": "requested"}
+
     def service_logs(self, service: str, tail: int = 200) -> str:
         if service not in SERVICE_DEFINITIONS:
             raise ValueError("Unbekannter Dienst")
@@ -395,6 +407,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Reinstall muss bestaetigt werden")
                 self._send(HTTPStatus.OK, self.manager.reinstall_stack())
                 return
+            if self.path.startswith("/api/stack/"):
+                action = self.path[len("/api/stack/"):]
+                if action == "update":
+                    if payload.get("confirm") is not True:
+                        raise ValueError("Stack-Update muss bestaetigt werden")
+                    result = self.manager.reinstall_stack()
+                else:
+                    result = self.manager.stack_action(action)
+                self._send(HTTPStatus.OK, result)
+                return
             prefix = "/api/services/"
             if self.path.startswith(prefix):
                 service, action = self.path[len(prefix):].split("/", 1)
@@ -466,7 +488,7 @@ INDEX_HTML = """<!doctype html>
 <body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Manager-Updates werden in Unraid über <strong>Force Update</strong> am Container eingespielt.</p></header>
 <nav class="main-nav" aria-label="Hauptnavigation"><button class="active" data-view="setup-view" type="button">Ersteinrichtung</button><button data-view="services-view" type="button">Dienste</button><button data-view="telegraf-view" type="button">Telegraf</button></nav>
 <section id="setup-view" class="view-section active"><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
-<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button id="reinstall" type="button">Stack neu erstellen</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
+<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button data-stack-action="start" type="button">Stack starten</button> <button data-stack-action="stop" type="button">Stack stoppen</button> <button data-stack-action="restart" type="button">Stack neu starten</button> <button data-stack-action="update" type="button">Stack aktualisieren</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
 <section id="telegraf-view" class="view-section"><h2>Telegraf-Konfiguration</h2><p class="muted">Die aktive Konfiguration wird vor dem Speichern gesichert und nach dem Speichern neu geladen.</p><textarea id="telegraf-config" rows="20" spellcheck="false" style="width:100%;box-sizing:border-box;font:12px monospace;padding:10px;border:1px solid #bdc8be;border-radius:5px"></textarea><p><button id="telegraf-load" type="button">Laden</button> <button id="telegraf-save" type="button">Speichern und neu starten</button></p></section>
 <section id="central-log"><h2>Zentrales Live-Log</h2><p id="progress">Bereit.</p><pre id="live-log">Noch keine Aktionen.</pre><p><button id="clear-log" type="button">Log leeren</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
@@ -491,7 +513,7 @@ document.getElementById('logs-close').addEventListener('click',()=>document.getE
 async function loadTelegraf(){setProgress('Telegraf-Konfiguration wird geladen...');const response=await fetch('/api/config/telegraf');const data=await response.json();if(data.error){setProgress('Telegraf-Laden fehlgeschlagen: '+data.error);return}document.getElementById('telegraf-config').value=data.config;setProgress('Telegraf-Konfiguration geladen')}
 document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
 document.getElementById('telegraf-save').addEventListener('click',async()=>{const button=document.getElementById('telegraf-save');button.disabled=true;setProgress('Telegraf-Konfiguration wird gespeichert...');const response=await fetch('/api/config/telegraf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:document.getElementById('telegraf-config').value})});const data=await response.json();button.disabled=false;if(data.error){setProgress('Telegraf-Speichern fehlgeschlagen: '+data.error);document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Telegraf-Konfiguration gespeichert und Telegraf neu gestartet.';setProgress(document.getElementById('message').textContent)});loadTelegraf();
-document.getElementById('reinstall').addEventListener('click',async()=>{if(!confirm('Alle fuenf Fachcontainer werden entfernt und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?'))return;const button=document.getElementById('reinstall');button.disabled=true;document.getElementById('message').textContent='Stack wird neu erstellt...';setProgress('Stack-Neuaufbau gestartet...');const response=await fetch('/api/reinstall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});const data=await response.json();button.disabled=false;document.getElementById('message').textContent=data.error||`Stack neu erstellt. Backup: ${data.backup}`;setProgress(data.error?`Stack-Neuaufbau fehlgeschlagen: ${data.error}`:`${data.recreated.length} Dienste neu erstellt; Backup: ${data.backup}`);state()});
+document.querySelector('[data-stack-action="start"]').parentElement.addEventListener('click',async event=>{const button=event.target.closest('[data-stack-action]');if(!button)return;const action=button.dataset.stackAction;const update=action==='update';if((action==='stop'||action==='restart'||update)&&!confirm(update?'Alle fuenf Fachcontainer werden aktualisiert und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?':`Alle fuenf Fachcontainer werden ${action==='stop'?'gestoppt':'neu gestartet'}. Fortfahren?`))return;button.disabled=true;setProgress(`Stack: ${action} gestartet...`);const response=await fetch(`/api/stack/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(update?{confirm:true}:{})});const data=await response.json();button.disabled=false;const message=data.error||`Stack: ${action} abgeschlossen.`;document.getElementById('message').textContent=message;setProgress(message);state()});
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));setProgress('Konfiguration wird gespeichert...');const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;setProgress(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';setProgress('Konfiguration gespeichert; Containerstatus wird geprueft...');const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;setProgress(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;setProgress(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
 </script></body></html>"""
 

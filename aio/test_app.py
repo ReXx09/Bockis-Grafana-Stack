@@ -108,6 +108,21 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(result["status"], "requested")
             self.assertIn(("bocki-aio-grafana", "restart"), docker.calls)
 
+    def test_stack_action_controls_all_services(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            result = manager.stack_action("restart")
+
+            self.assertEqual(result["services"], list(SERVICE_DEFINITIONS))
+            self.assertEqual(
+                [call for call in docker.calls if len(call) == 2 and call[1] == "restart"],
+                [(f"bocki-aio-{service}", "restart") for service in SERVICE_DEFINITIONS],
+            )
+
     def test_service_action_update_reports_availability(self):
         with tempfile.TemporaryDirectory() as directory:
             socket_path = Path(directory) / "docker.sock"
