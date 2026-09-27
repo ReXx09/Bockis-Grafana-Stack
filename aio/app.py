@@ -93,7 +93,7 @@ class Manager:
         except (OSError, DockerApiError, ValueError) as error:
             self.docker_error = str(error)
 
-    def save_config(self, values: dict[str, Any]) -> None:
+    def save_config(self, values: dict[str, Any]) -> dict[str, Any]:
         config = dict(DEFAULT_CONFIG)
         config.update(self.config)
         secret_fields = {"grafana_admin_password", "influx_admin_password"}
@@ -106,16 +106,17 @@ class Manager:
         self.config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
         self.config = config
         new_password = str(values.get("grafana_admin_password", "")).strip()
-        if new_password:
-            self._sync_grafana_admin_password(new_password)
+        grafana_password_synced = self._sync_grafana_admin_password(new_password) if new_password else None
+        return {"grafana_password_synced": grafana_password_synced}
 
-    def _sync_grafana_admin_password(self, password: str) -> None:
+    def _sync_grafana_admin_password(self, password: str) -> bool:
         if not Path(self.docker.socket_path).exists():
-            return
+            return False
         try:
             self.docker.exec_run("bocki-aio-grafana", ["grafana-cli", "admin", "reset-admin-password", password])
+            return True
         except (OSError, DockerApiError, ValueError, AttributeError):
-            pass
+            return False
 
     def install_stack(self) -> dict[str, Any]:
         if not self.config.get("configured"):
@@ -409,8 +410,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/setup":
                 self._validate_setup(payload, bool(self.manager.config.get("configured")))
-                self.manager.save_config(payload)
-                self._send(HTTPStatus.OK, self.manager.state())
+                sync_result = self.manager.save_config(payload)
+                response = self.manager.state()
+                response.update(sync_result)
+                self._send(HTTPStatus.OK, response)
                 return
             if self.path == "/api/config/telegraf":
                 path = self.manager.save_telegraf_config(str(payload.get("config", "")))
@@ -542,7 +545,7 @@ async function loadTelegraf(){setProgress('Telegraf-Konfiguration wird geladen..
 document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
 document.getElementById('telegraf-save').addEventListener('click',async()=>{const button=document.getElementById('telegraf-save');button.disabled=true;setProgress('Telegraf-Konfiguration wird gespeichert...');const response=await fetch('/api/config/telegraf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:document.getElementById('telegraf-config').value})});const data=await response.json();button.disabled=false;if(data.error){setProgress('Telegraf-Speichern fehlgeschlagen: '+data.error);document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Telegraf-Konfiguration gespeichert und Telegraf neu gestartet.';setProgress(document.getElementById('message').textContent)});loadTelegraf();
 document.querySelector('[data-stack-action="start"]').parentElement.addEventListener('click',async event=>{const button=event.target.closest('[data-stack-action]');if(!button)return;const action=button.dataset.stackAction;const update=action==='update';if((action==='stop'||action==='restart'||update)&&!confirm(update?'Alle fuenf Fachcontainer werden aktualisiert und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?':`Alle fuenf Fachcontainer werden ${action==='stop'?'gestoppt':'neu gestartet'}. Fortfahren?`))return;button.disabled=true;setProgress(`Stack: ${action} gestartet...`);const response=await fetch(`/api/stack/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(update?{confirm:true}:{})});const data=await response.json();button.disabled=false;const message=data.error||`Stack: ${action} abgeschlossen.`;document.getElementById('message').textContent=message;setProgress(message);state()});
-document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));setProgress('Konfiguration wird gespeichert...');const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;setProgress(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';setProgress('Konfiguration gespeichert; Containerstatus wird geprueft...');const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;setProgress(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;setProgress(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
+document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));setProgress('Konfiguration wird gespeichert...');const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;setProgress(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';setProgress('Konfiguration gespeichert; Containerstatus wird geprueft...');if(data.grafana_password_synced===true){logEvent('Grafana-Passwort wurde im laufenden Container sofort aktualisiert.')}else if(data.grafana_password_synced===false){logEvent('Grafana-Passwort konnte nicht sofort gesetzt werden (Container laeuft evtl. noch nicht).')}const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;setProgress(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;setProgress(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
 </script></body></html>"""
 
 
