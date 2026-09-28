@@ -37,8 +37,8 @@ def flux_query(action: str) -> str:
 
 def system_dashboard_json(bucket: str) -> str:
     panels: list[dict[str, Any]] = [
-        system_timeseries(1, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
-        system_timeseries(2, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
+        percentage_gauge_panel(1, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
+        percentage_gauge_panel(2, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
         system_timeseries(3, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
         system_timeseries(4, "Netzwerk-Durchsatz (Bytes/s)", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
         system_timeseries(7, "CPU-Kerne (%)", 0, 24, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
@@ -65,8 +65,8 @@ def system_dashboard_json(bucket: str) -> str:
 def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, include_docker: bool = False, include_temperature: bool = False) -> str:
     sections: list[dict[str, Any]] = [
         dashboard_section(1, "Uebersicht", [
-            system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter),
-            system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=host_filter),
+            percentage_gauge_panel(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter),
+            percentage_gauge_panel(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=host_filter),
             system_stat(103, "Prozesse", 12, 0, bucket, "processes", "n_total", host_filter=host_filter),
             system_stat(104, "Uptime", 18, 0, bucket, "system", "uptime", host_filter=host_filter),
         ]),
@@ -129,8 +129,8 @@ def dashboard_switch_links() -> list[dict[str, Any]]:
 def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False) -> str:
     sections = [
         dashboard_section(1, "Uebersicht", [
-            system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
-            system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
+            percentage_gauge_panel(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
+            percentage_gauge_panel(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
             system_stat(103, "Laufende Container", 12, 0, bucket, "docker", "n_containers_running"),
             loki_stat(104, "Geblockte Firewall-Ereignisse", "action=\"block\"", "red"),
         ]),
@@ -372,6 +372,37 @@ def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurem
     query = _system_flux(bucket, measurement, field, filter_extra, host_filter=host_filter)
     unit = "dtdurations" if field == "uptime" else "short"
     return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": unit}, "overrides": []}}
+
+
+def percentage_gauge_panel(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", host_filter: str = "") -> dict[str, Any]:
+    query = _system_flux(bucket, measurement, field, filter_extra, host_filter=host_filter)
+    return {
+        "id": panel_id,
+        "type": "bargauge",
+        "title": title,
+        "gridPos": {"h": 8, "w": 6, "x": x, "y": y},
+        "datasource": {"type": "influxdb", "uid": "InfluxDB"},
+        "targets": [{"refId": "A", "query": query}],
+        "fieldConfig": {
+            "defaults": {
+                "unit": "percent",
+                "min": 0,
+                "max": 100,
+                "thresholds": {"mode": "absolute", "steps": [
+                    {"color": "green", "value": None},
+                    {"color": "yellow", "value": 60},
+                    {"color": "red", "value": 80},
+                ]},
+            },
+            "overrides": [],
+        },
+        "options": {
+            "orientation": "vertical",
+            "displayMode": "gradient",
+            "showUnfilled": True,
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        },
+    }
 
 
 def system_table(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, group_by: str = "", host_filter: str = "") -> dict[str, Any]:

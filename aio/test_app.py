@@ -385,6 +385,10 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(set(network_panels), {"Download", "Upload"})
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "Mbits" for panel in network_panels.values()))
             self.assertTrue(all("/ 1000000.0" in panel["targets"][0]["query"] for panel in network_panels.values()))
+            resource_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"CPU-Auslastung", "Speicherauslastung"}}
+            self.assertEqual(set(resource_panels), {"CPU-Auslastung", "Speicherauslastung"})
+            self.assertTrue(all(panel["type"] == "bargauge" and panel["options"]["orientation"] == "vertical" for panel in resource_panels.values()))
+            self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "percent" and panel["fieldConfig"]["defaults"]["max"] == 100 for panel in resource_panels.values()))
             self.assertIn('r._measurement == \\"system\\" and r._field == \\"uptime\\"', json.dumps(unified_payload))
             uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
             self.assertTrue(uptime_panels)
