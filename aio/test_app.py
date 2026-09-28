@@ -336,6 +336,8 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(set(result["created"]), set(SERVICE_DEFINITIONS))
             self.assertTrue((root / "data" / "generated" / "telegraf.conf").exists())
+            dashboard_provider = (root / "data" / "generated" / "grafana-dashboards.yml").read_text(encoding="utf-8")
+            self.assertIn("allowUiUpdates: true", dashboard_provider)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             telegraf_spec = next(spec for spec in specs if spec["Image"] == "telegraf:1.34")
             self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])

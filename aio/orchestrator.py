@@ -210,7 +210,7 @@ def grafana_datasource(config: dict[str, Any]) -> str:
     return json.dumps(payload, indent=2) + "\n"
 
 
-GRAFANA_DASHBOARDS = """apiVersion: 1\nproviders:\n  - name: Bocki\n    type: file\n    updateIntervalSeconds: 30\n    options:\n      path: /var/lib/grafana/dashboards\n"""
+GRAFANA_DASHBOARDS = """apiVersion: 1\nproviders:\n  - name: Bocki\n    type: file\n    allowUiUpdates: true\n    updateIntervalSeconds: 30\n    options:\n      path: /var/lib/grafana/dashboards\n"""
 
 LOKI_CONFIG = """auth_enabled: false\nserver:\n  http_listen_port: 3100\ncommon:\n  path_prefix: /loki\n  storage:\n    filesystem:\n      chunks_directory: /loki/chunks\n      rules_directory: /loki/rules\n  replication_factor: 1\n  ring:\n    kvstore:\n      store: inmemory\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      object_store: filesystem\n      schema: v13\n      index:\n        prefix: index_\n        period: 24h\nlimits_config:\n  retention_period: 168h\ncompactor:\n  working_directory: /loki/compactor\n  retention_enabled: true\n  delete_request_store: filesystem\n"""
 
