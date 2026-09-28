@@ -44,6 +44,7 @@ def system_dashboard_json(bucket: str) -> str:
         system_timeseries(7, "CPU-Kerne (%)", 0, 24, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
         system_stat(5, "Laufende Container", 0, 16, bucket, "docker", "n_containers_running"),
         system_table(6, "Container CPU (%)", 6, 16, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
+        system_stat(8, "Uptime", 18, 16, bucket, "system", "uptime"),
     ]
     dashboard = {
         "uid": "bocki-system-metrics",
@@ -67,6 +68,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter),
             system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=host_filter),
             system_stat(103, "Prozesse", 12, 0, bucket, "processes", "n_total", host_filter=host_filter),
+            system_stat(104, "Uptime", 18, 0, bucket, "system", "uptime", host_filter=host_filter),
         ]),
         dashboard_section(2, "System", [
             system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter=host_filter),
@@ -135,6 +137,7 @@ def unified_dashboard_json(bucket: str) -> str:
             system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
             system_timeseries(204, "CPU-Kerne (%)", 12, 8, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
+            system_stat(205, "Uptime", 0, 16, bucket, "system", "uptime"),
         ]),
         dashboard_section(3, "Docker", [
             system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
@@ -262,7 +265,8 @@ def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, me
 
 def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", host_filter: str = "") -> dict[str, Any]:
     query = _system_flux(bucket, measurement, field, filter_extra, host_filter=host_filter)
-    return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
+    unit = "dtdurations" if field == "uptime" else "short"
+    return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": unit}, "overrides": []}}
 
 
 def system_table(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, group_by: str = "", host_filter: str = "") -> dict[str, Any]:

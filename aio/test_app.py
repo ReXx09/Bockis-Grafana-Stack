@@ -364,6 +364,10 @@ class ManagerTests(unittest.TestCase):
             self.assertGreater(sum(panel["type"] != "row" for panel in unified_payload["panels"]), 0)
             self.assertIn("count_over_time", json.dumps(unified_payload))
             self.assertIn('r.cpu != \\"cpu-total\\"', json.dumps(unified_payload))
+            self.assertIn('r._measurement == \\"system\\" and r._field == \\"uptime\\"', json.dumps(unified_payload))
+            uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
+            self.assertTrue(uptime_panels)
+            self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "dtdurations" for panel in uptime_panels))
             self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one", "bocki-unraid", "bocki-raspberry", "bocki-opnsense"})
             for filename, uid, host_filter in (
                 ("bocki-unraid-v1.json", "bocki-unraid", 'r.host == "bocki-aio"'),
