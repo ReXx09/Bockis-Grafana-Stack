@@ -231,6 +231,8 @@ def telegraf_config(config: dict[str, Any]) -> str:
 [[inputs.smart]]
     path_smartctl = "/usr/sbin/smartctl"
     attributes = true
+    devices = ["/dev/sdb -d sat", "/dev/sdc -d sat", "/dev/sdd -d sat", "/dev/sde -d sat", "/dev/sdf -d sat", "/dev/nvme0 -d nvme"]
+    read_method = "sequential"
 [[inputs.docker]]
     endpoint = "unix:///var/run/docker.sock"
     gather_services = false

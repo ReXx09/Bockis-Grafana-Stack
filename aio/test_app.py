@@ -371,6 +371,8 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("total = true", telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
             self.assertIn("[[inputs.smart]]", telegraf_conf)
+            self.assertIn('/dev/sdb -d sat', telegraf_conf)
+            self.assertIn('read_method = "sequential"', telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
