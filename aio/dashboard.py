@@ -124,8 +124,8 @@ def dashboard_switch_links() -> list[dict[str, Any]]:
     ]]
 
 
-def unified_dashboard_json(bucket: str) -> str:
-    panels = flatten_dashboard_sections([
+def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False) -> str:
+    sections = [
         dashboard_section(1, "Uebersicht", [
             system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
             system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
@@ -156,7 +156,10 @@ def unified_dashboard_json(bucket: str) -> str:
             loki_timeseries(601, "Pass / Block im Zeitverlauf", 0, 0),
             loki_logs(602, "Firewall-Ereignisse", 12, 0),
         ]),
-    ])
+    ]
+    if include_uptime_kuma:
+        sections.append(uptime_kuma_section(bucket))
+    panels = flatten_dashboard_sections(sections)
     dashboard = {
         "uid": "bocki-all-in-one",
         "title": "Bocki Gesamtuebersicht",
@@ -171,6 +174,32 @@ def unified_dashboard_json(bucket: str) -> str:
         "panels": panels,
     }
     return json.dumps(dashboard, indent=2) + "\n"
+
+
+def uptime_kuma_section(bucket: str) -> dict[str, Any]:
+    return dashboard_section(7, "Uptime Kuma", [
+        uptime_kuma_stat(701, "Monitore aktiv", 0, 0, bucket),
+        uptime_kuma_timeseries(702, "Monitor-Status", 6, 0, "monitor_status", bucket),
+        uptime_kuma_timeseries(703, "Antwortzeit", 0, 8, "monitor_response_time", bucket, unit="ms"),
+    ])
+
+
+def uptime_kuma_stat(panel_id: int, title: str, x: int, y: int, bucket: str) -> dict[str, Any]:
+    query = f'''from(bucket: "{bucket}")
+    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+    |> filter(fn: (r) => r._measurement == "monitor_status" and r._field == "value")
+    |> last()
+    |> group()
+    |> count()'''
+    return {"id": panel_id, "type": "stat", "title": title, "gridPos": {"h": 6, "w": 6, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
+
+
+def uptime_kuma_timeseries(panel_id: int, title: str, x: int, y: int, measurement: str, bucket: str, unit: str = "short") -> dict[str, Any]:
+    query = f'''from(bucket: "{bucket}")
+    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+    |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "value")
+    |> group(columns: ["monitor_name"])'''
+    return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": unit}, "overrides": []}}
 
 
 def dashboard_section(panel_id: int, title: str, panels: list[dict[str, Any]]) -> dict[str, Any]:

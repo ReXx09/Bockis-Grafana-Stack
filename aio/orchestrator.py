@@ -52,7 +52,7 @@ class StackOrchestrator:
             "grafana-dashboards.yml": GRAFANA_DASHBOARDS,
             "opnsense-firewall-v1.json": dashboard_json(),
             "system-metrics-v1.json": system_dashboard_json(config["bucket"]),
-            "bocki-all-in-one-v1.json": unified_dashboard_json(config["bucket"]),
+            "bocki-all-in-one-v1.json": unified_dashboard_json(config["bucket"], bool(config.get("uptime_kuma_url"))),
             "bocki-unraid-v1.json": host_dashboard_json(config["bucket"], "bocki-unraid", "Bocki Unraid", 'r.host == "bocki-aio"', include_docker=True),
             "bocki-raspberry-v1.json": host_dashboard_json(config["bucket"], "bocki-raspberry", "Bocki Raspberry", 'r.host =~ /^raspi/', include_temperature=True),
             "bocki-opnsense-v1.json": host_dashboard_json(config["bucket"], "bocki-opnsense", "Bocki OPNsense", 'r.host == "opnsense"'),
@@ -199,7 +199,9 @@ def add_port(bindings: dict[str, list[dict[str, str]]], exposed: dict[str, dict[
 
 
 def telegraf_config(config: dict[str, Any]) -> str:
-    return f'''[agent]\n  interval = "10s"\n  round_interval = true\n  hostname = "bocki-aio"\n\n[[outputs.influxdb_v2]]\n  urls = ["http://influxdb:8086"]\n  token = "{config["influx_admin_token"]}"\n  organization = "{config["organization"]}"\n  bucket = "{config["bucket"]}"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.mem]]\n[[inputs.system]]\n[[inputs.net]]\n[[inputs.disk]]\n  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]\n[[inputs.diskio]]\n[[inputs.processes]]\n[[inputs.temp]]\n[[inputs.smart]]\n  path = "/usr/sbin/smartctl"\n  attributes = true\n[[inputs.docker]]\n  endpoint = "unix:///var/run/docker.sock"\n  gather_services = false\n  timeout = "5s"\n  perdevice = true\n  total = true\n\n# Optional: USV-Metriken (benoetigt einen laufenden apcupsd auf dem Unraid-Host)\n# [[inputs.apcupsd]]\n#   servers = ["tcp://127.0.0.1:3551"]\n\n# Optional: Mainboard-/CPU-Sensoren (benoetigt lm-sensors auf dem Host und Zugriff auf /sys)\n# [[inputs.sensors]]\n'''
+    uptime_kuma = str(config.get("uptime_kuma_url", "")).strip().rstrip("/")
+    uptime_block = f'\n[[inputs.prometheus]]\n  urls = ["{uptime_kuma}/metrics"]\n  metric_version = 2\n' if uptime_kuma else ""
+    return f'''[agent]\n  interval = "10s"\n  round_interval = true\n  hostname = "bocki-aio"\n\n[[outputs.influxdb_v2]]\n  urls = ["http://influxdb:8086"]\n  token = "{config["influx_admin_token"]}"\n  organization = "{config["organization"]}"\n  bucket = "{config["bucket"]}"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.mem]]\n[[inputs.system]]\n[[inputs.net]]\n[[inputs.disk]]\n  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]\n[[inputs.diskio]]\n[[inputs.processes]]\n[[inputs.temp]]\n[[inputs.smart]]\n  path = "/usr/sbin/smartctl"\n  attributes = true\n[[inputs.docker]]\n  endpoint = "unix:///var/run/docker.sock"\n  gather_services = false\n  timeout = "5s"\n  perdevice = true\n  total = true\n{uptime_block}\n# Optional: USV-Metriken (benoetigt einen laufenden apcupsd auf dem Unraid-Host)\n# [[inputs.apcupsd]]\n#   servers = ["tcp://127.0.0.1:3551"]\n\n# Optional: Mainboard-/CPU-Sensoren (benoetigt lm-sensors auf dem Host und Zugriff auf /sys)\n# [[inputs.sensors]]\n'''
 
 
 def grafana_datasource(config: dict[str, Any]) -> str:

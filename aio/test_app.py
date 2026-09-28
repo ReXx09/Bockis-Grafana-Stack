@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 from aio.app import Handler, Manager, running_processes
 from aio.docker_api import DockerApiError, DockerClient
 from aio.filterlog import FilterlogParseError, parse_filterlog
-from aio.orchestrator import SERVICE_ICONS
+from aio.orchestrator import SERVICE_ICONS, telegraf_config
+from aio.dashboard import unified_dashboard_json
 from aio.services import ALLOWED_ACTIONS, SERVICE_DEFINITIONS
 
 
@@ -67,6 +68,22 @@ class ManagerTests(unittest.TestCase):
         self.assertFalse(state["configured"])
         self.assertEqual(set(state["services"]), set(SERVICE_DEFINITIONS))
         self.assertTrue(set(state["services"]).isdisjoint({"postgres", "random-container"}))
+
+    def test_uptime_kuma_prometheus_integration_is_optional(self):
+        base_config = {"influx_admin_token": "token", "organization": "home", "bucket": "homelab"}
+        self.assertNotIn("[[inputs.prometheus]]", telegraf_config(base_config))
+
+        config = dict(base_config, uptime_kuma_url="http://uptime-kuma:3001/")
+        prometheus_config = telegraf_config(config)
+        self.assertIn("[[inputs.prometheus]]", prometheus_config)
+        self.assertIn('urls = ["http://uptime-kuma:3001/metrics"]', prometheus_config)
+
+        dashboard = json.loads(unified_dashboard_json("homelab", True))
+        uptime_rows = [panel for panel in dashboard["panels"] if panel.get("title") == "Uptime Kuma"]
+        self.assertEqual(len(uptime_rows), 1)
+        response_panels = [panel for panel in dashboard["panels"] if panel.get("title") == "Antwortzeit"]
+        self.assertEqual(len(response_panels), 1)
+        self.assertIn('r._measurement == "monitor_response_time"', response_panels[0]["targets"][0]["query"])
 
     def test_docker_client_decodes_chunked_responses(self):
         body = b"3\r\n[1,\r\n4\r\n2,3]\r\n0\r\n\r\n"
