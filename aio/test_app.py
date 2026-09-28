@@ -362,6 +362,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])
             self.assertIn("/sys:/sys:ro", telegraf_spec["HostConfig"]["Binds"])
             self.assertIn("/dev:/dev:ro", telegraf_spec["HostConfig"]["Binds"])
+            self.assertTrue(telegraf_spec["HostConfig"]["Privileged"])
             self.assertEqual(telegraf_spec["HostConfig"]["CapAdd"], ["SYS_RAWIO"])
             telegraf_conf = (root / "data" / "generated" / "telegraf.conf").read_text(encoding="utf-8")
             self.assertIn("[[inputs.system]]", telegraf_conf)

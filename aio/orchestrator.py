@@ -176,6 +176,7 @@ class StackOrchestrator:
         }
         if service == "telegraf":
             spec["User"] = "0"
+            spec["HostConfig"]["Privileged"] = True
             spec["HostConfig"]["CapAdd"] = ["SYS_RAWIO"]
         if service == "grafana":
             spec["User"] = "0"

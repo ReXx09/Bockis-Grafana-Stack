@@ -6,7 +6,7 @@
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
-  <Privileged>false</Privileged>
+  <Privileged>true</Privileged>
   <Support>https://github.com/ReXx09/Bockis-Grafana-Stack</Support>
   <Project>https://github.com/ReXx09/Bockis-Grafana-Stack</Project>
   <Overview>Telegraf fuer Unraid Host- und Docker-Metriken in InfluxDB 2.x.</Overview>
