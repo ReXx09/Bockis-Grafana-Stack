@@ -369,8 +369,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("[[inputs.processes]]", telegraf_conf)
             self.assertIn("total = true", telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
-            self.assertIn("[[inputs.smart]]", telegraf_conf)
-            self.assertIn('path_smartctl = "/usr/sbin/smartctl"', telegraf_conf)
+            self.assertNotIn("[[inputs.smart]]", telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
