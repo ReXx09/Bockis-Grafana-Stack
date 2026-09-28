@@ -398,6 +398,12 @@ class ManagerTests(unittest.TestCase):
                 payload = json.loads((root / "data" / "generated" / filename).read_text(encoding="utf-8"))
                 self.assertEqual(payload["uid"], uid)
                 self.assertIn(host_filter.replace('"', '\\"'), json.dumps(payload))
+                if uid == "bocki-unraid":
+                    smart_panels = [panel for panel in payload["panels"] if panel.get("title") == "Festplatten-Temperatur"]
+                    self.assertEqual(len(smart_panels), 1)
+                    self.assertEqual(smart_panels[0]["type"], "bargauge")
+                    self.assertEqual(smart_panels[0]["options"]["orientation"], "horizontal")
+                    self.assertIn("|> last()", smart_panels[0]["targets"][0]["query"])
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

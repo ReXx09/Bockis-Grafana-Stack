@@ -228,11 +228,38 @@ def flatten_dashboard_sections(sections: list[dict[str, Any]]) -> list[dict[str,
 
 
 def smart_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket: str, host_filter: str) -> dict[str, Any]:
-        query = f'''from(bucket: "{bucket}")
+    query = f'''from(bucket: "{bucket}")
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r._measurement == "smart" and r._field =~ /temp/ and {host_filter})
-    |> group(columns: ["disk"])'''
-        return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}}
+  |> group(columns: ["disk"])
+  |> last()'''
+    return {
+        "id": panel_id,
+        "type": "bargauge",
+        "title": title,
+        "gridPos": {"h": 10, "w": 12, "x": x, "y": y},
+        "datasource": {"type": "influxdb", "uid": "InfluxDB"},
+        "targets": [{"refId": "A", "query": query}],
+        "fieldConfig": {
+            "defaults": {
+                "unit": "celsius",
+                "min": 0,
+                "max": 70,
+                "thresholds": {"mode": "absolute", "steps": [
+                    {"color": "green", "value": None},
+                    {"color": "yellow", "value": 40},
+                    {"color": "red", "value": 50},
+                ]},
+            },
+            "overrides": [],
+        },
+        "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": True,
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        },
+    }
 
 
 def loki_stat(panel_id: int, title: str, selector: str, color: str) -> dict[str, Any]:
