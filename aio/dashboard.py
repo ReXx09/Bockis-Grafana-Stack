@@ -76,7 +76,8 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
             network_rate_panel(204, "Download", 12, 8, bucket, "bytes_recv", host_filter),
             system_timeseries(206, "CPU-Temperatur", 0, 16, bucket, "temp", "temp", group_by="name", host_filter=host_filter),
-            system_timeseries(207, "CPU-Kerne (%)", 12, 16, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu", host_filter=host_filter),
+                system_timeseries(207, "CPU-Kerne (%)", 12, 16, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu", host_filter=host_filter),
+                cpu_core_temperature_panel(210, "CPU-Kern-Temperaturen", 0, 32, bucket, host_filter),
             network_rate_panel(209, "Upload", 12, 24, bucket, "bytes_sent", host_filter),
         ]),
     ]
@@ -321,14 +322,50 @@ def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, me
 
 
 def network_rate_panel(panel_id: int, title: str, x: int, y: int, bucket: str, field: str, host_filter: str = "") -> dict[str, Any]:
-        filters = f' and {host_filter}' if host_filter else ""
-        query = f'''from(bucket: "{bucket}")
+    filters = f' and {host_filter}' if host_filter else ""
+    query = f'''from(bucket: "{bucket}")
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
     |> filter(fn: (r) => r._measurement == "net" and r._field == "{field}"{filters})
     |> derivative(unit: 1s, nonNegative: true)
     |> map(fn: (r) => ({{ r with _value: r._value * 8.0 / 1000000.0 }}))
     |> group(columns: ["interface"])'''
-        return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "Mbits"}, "overrides": []}}
+    return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "Mbits"}, "overrides": []}}
+
+
+def cpu_core_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket: str, host_filter: str = "") -> dict[str, Any]:
+    filters = f' and {host_filter}' if host_filter else ""
+    query = f'''from(bucket: "{bucket}")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "temp" and r._field == "temp" and r.name =~ /(?i)core/{filters})
+  |> group(columns: ["name"])
+  |> last()'''
+    return {
+        "id": panel_id,
+        "type": "bargauge",
+        "title": title,
+        "gridPos": {"h": 10, "w": 12, "x": x, "y": y},
+        "datasource": {"type": "influxdb", "uid": "InfluxDB"},
+        "targets": [{"refId": "A", "query": query}],
+        "fieldConfig": {
+            "defaults": {
+                "unit": "celsius",
+                "min": 0,
+                "max": 100,
+                "thresholds": {"mode": "absolute", "steps": [
+                    {"color": "green", "value": None},
+                    {"color": "yellow", "value": 60},
+                    {"color": "red", "value": 80},
+                ]},
+            },
+            "overrides": [],
+        },
+        "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": True,
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        },
+    }
 
 
 def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", host_filter: str = "") -> dict[str, Any]:
