@@ -46,7 +46,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=0.3.35,enable={{is_default_branch}}
+            type=raw,value=0.3.36,enable={{is_default_branch}}
             type=semver,pattern={{version}}
 
       - name: Build and push
