@@ -233,6 +233,7 @@ def telegraf_config(config: dict[str, Any]) -> str:
     attributes = true
     devices = ["/dev/sdb -d sat", "/dev/sdc -d sat", "/dev/sdd -d sat", "/dev/sde -d sat", "/dev/sdf -d sat", "/dev/nvme0 -d nvme"]
     read_method = "sequential"
+    nocheck = "never"
 [[inputs.docker]]
     endpoint = "unix:///var/run/docker.sock"
     gather_services = false
