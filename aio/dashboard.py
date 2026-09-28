@@ -84,6 +84,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name", host_filter=host_filter),
             system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name", host_filter=host_filter),
         ]))
+        sections[1]["panels"].append(smart_temperature_panel(208, "Festplatten-Temperatur", 0, 24, bucket, host_filter))
     dashboard = {
         "uid": uid,
         "title": title,
@@ -191,6 +192,14 @@ def flatten_dashboard_sections(sections: list[dict[str, Any]]) -> list[dict[str,
             flattened.append(panel)
         section_y += max((panel.get("gridPos", {}).get("h", 0) for panel in section_panels), default=0)
     return flattened
+
+
+def smart_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket: str, host_filter: str) -> dict[str, Any]:
+        query = f'''from(bucket: "{bucket}")
+    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+    |> filter(fn: (r) => r._measurement == "smart" and r._field =~ /temp/ and {host_filter})
+    |> group(columns: ["disk"])'''
+        return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}}
 
 
 def loki_stat(panel_id: int, title: str, selector: str, color: str) -> dict[str, Any]:

@@ -342,12 +342,15 @@ class ManagerTests(unittest.TestCase):
             telegraf_spec = next(spec for spec in specs if spec["Image"] == "telegraf:1.34")
             self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])
             self.assertIn("/sys:/sys:ro", telegraf_spec["HostConfig"]["Binds"])
+            self.assertIn("/dev:/dev:ro", telegraf_spec["HostConfig"]["Binds"])
+            self.assertEqual(telegraf_spec["HostConfig"]["CapAdd"], ["SYS_RAWIO"])
             telegraf_conf = (root / "data" / "generated" / "telegraf.conf").read_text(encoding="utf-8")
             self.assertIn("[[inputs.system]]", telegraf_conf)
             self.assertIn("[[inputs.diskio]]", telegraf_conf)
             self.assertIn("[[inputs.processes]]", telegraf_conf)
             self.assertIn("total = true", telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
+            self.assertIn("[[inputs.smart]]", telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
