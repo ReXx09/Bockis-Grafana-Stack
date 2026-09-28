@@ -381,6 +381,10 @@ class ManagerTests(unittest.TestCase):
             self.assertGreater(sum(panel["type"] != "row" for panel in unified_payload["panels"]), 0)
             self.assertIn("count_over_time", json.dumps(unified_payload))
             self.assertIn('r.cpu != \\"cpu-total\\"', json.dumps(unified_payload))
+            network_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"Download", "Upload"}}
+            self.assertEqual(set(network_panels), {"Download", "Upload"})
+            self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "Mbits" for panel in network_panels.values()))
+            self.assertTrue(all("/ 1000000.0" in panel["targets"][0]["query"] for panel in network_panels.values()))
             self.assertIn('r._measurement == \\"system\\" and r._field == \\"uptime\\"', json.dumps(unified_payload))
             uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
             self.assertTrue(uptime_panels)

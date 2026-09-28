@@ -74,9 +74,10 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter=host_filter),
             system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent", host_filter=host_filter),
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
-            system_timeseries(204, "Netzwerk Empfang", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True, host_filter=host_filter),
+            network_rate_panel(204, "Download", 12, 8, bucket, "bytes_recv", host_filter),
             system_timeseries(206, "CPU-Temperatur", 0, 16, bucket, "temp", "temp", group_by="name", host_filter=host_filter),
             system_timeseries(207, "CPU-Kerne (%)", 12, 16, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu", host_filter=host_filter),
+            network_rate_panel(209, "Upload", 12, 24, bucket, "bytes_sent", host_filter),
         ]),
     ]
     if include_temperature:
@@ -144,8 +145,8 @@ def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False) -> st
             system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name"),
         ]),
         dashboard_section(4, "Netzwerk", [
-            system_timeseries(401, "Empfangene Daten (Bytes/s)", 0, 0, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
-            system_timeseries(402, "Gesendete Daten (Bytes/s)", 12, 0, bucket, "net", "bytes_sent", group_by="interface", derivative=True),
+            network_rate_panel(401, "Download", 0, 0, bucket, "bytes_recv"),
+            network_rate_panel(402, "Upload", 12, 0, bucket, "bytes_sent"),
         ]),
         dashboard_section(5, "OPNsense", [
             system_timeseries(501, "Firewall CPU (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
@@ -290,6 +291,17 @@ def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = 
 def system_timeseries(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False, host_filter: str = "") -> dict[str, Any]:
     query = _system_flux(bucket, measurement, field, filter_extra, group_by, derivative, host_filter)
     return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}}
+
+
+def network_rate_panel(panel_id: int, title: str, x: int, y: int, bucket: str, field: str, host_filter: str = "") -> dict[str, Any]:
+        filters = f' and {host_filter}' if host_filter else ""
+        query = f'''from(bucket: "{bucket}")
+    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+    |> filter(fn: (r) => r._measurement == "net" and r._field == "{field}"{filters})
+    |> derivative(unit: 1s, nonNegative: true)
+    |> map(fn: (r) => ({{ r with _value: r._value * 8.0 / 1000000.0 }}))
+    |> group(columns: ["interface"])'''
+        return {"id": panel_id, "type": "timeseries", "title": title, "gridPos": {"h": 8, "w": 12, "x": x, "y": y}, "datasource": {"type": "influxdb", "uid": "InfluxDB"}, "targets": [{"refId": "A", "query": query}], "fieldConfig": {"defaults": {"unit": "Mbits"}, "overrides": []}}
 
 
 def system_stat(panel_id: int, title: str, x: int, y: int, bucket: str, measurement: str, field: str, filter_extra: str = "", host_filter: str = "") -> dict[str, Any]:
