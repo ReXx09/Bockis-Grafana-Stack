@@ -344,6 +344,8 @@ class ManagerTests(unittest.TestCase):
             telegraf_conf = (root / "data" / "generated" / "telegraf.conf").read_text(encoding="utf-8")
             self.assertIn("[[inputs.system]]", telegraf_conf)
             self.assertIn("[[inputs.diskio]]", telegraf_conf)
+            self.assertIn("[[inputs.processes]]", telegraf_conf)
+            self.assertIn("total = true", telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
