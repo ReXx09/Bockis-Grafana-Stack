@@ -41,6 +41,7 @@ def system_dashboard_json(bucket: str) -> str:
         system_timeseries(2, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
         system_timeseries(3, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
         system_timeseries(4, "Netzwerk-Durchsatz (Bytes/s)", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
+        system_timeseries(7, "CPU-Kerne (%)", 0, 24, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
         system_stat(5, "Laufende Container", 0, 16, bucket, "docker", "n_containers_running"),
         system_table(6, "Container CPU (%)", 6, 16, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
     ]
@@ -73,6 +74,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
             system_timeseries(204, "Netzwerk Empfang", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True, host_filter=host_filter),
             system_timeseries(206, "CPU-Temperatur", 0, 16, bucket, "temp", "temp", group_by="name", host_filter=host_filter),
+            system_timeseries(207, "CPU-Kerne (%)", 12, 16, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu", host_filter=host_filter),
         ]),
     ]
     if include_temperature:
@@ -131,6 +133,7 @@ def unified_dashboard_json(bucket: str) -> str:
             system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
             system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
+            system_timeseries(204, "CPU-Kerne (%)", 12, 8, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
         ]),
         dashboard_section(3, "Docker", [
             system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),

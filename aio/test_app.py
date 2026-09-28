@@ -360,6 +360,7 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual([panel["title"] for panel in unified_payload["panels"] if panel["type"] == "row"], ["Uebersicht", "System", "Docker", "Netzwerk", "OPNsense", "Firewall"])
             self.assertGreater(sum(panel["type"] != "row" for panel in unified_payload["panels"]), 0)
             self.assertIn("count_over_time", json.dumps(unified_payload))
+            self.assertIn('r.cpu != \\"cpu-total\\"', json.dumps(unified_payload))
             self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one", "bocki-unraid", "bocki-raspberry", "bocki-opnsense"})
             for filename, uid, host_filter in (
                 ("bocki-unraid-v1.json", "bocki-unraid", 'r.host == "bocki-aio"'),
