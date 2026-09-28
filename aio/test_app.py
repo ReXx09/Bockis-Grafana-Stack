@@ -355,6 +355,8 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue((root / "data" / "generated" / "telegraf.conf").exists())
             dashboard_provider = (root / "data" / "generated" / "grafana-dashboards.yml").read_text(encoding="utf-8")
             self.assertIn("allowUiUpdates: true", dashboard_provider)
+            self.assertIn("disableDeletion: true", dashboard_provider)
+            self.assertIn("updateIntervalSeconds: 0", dashboard_provider)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             telegraf_spec = next(spec for spec in specs if spec["Image"] == "telegraf:1.34")
             self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])
@@ -425,6 +427,22 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
             loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
             self.assertEqual(loki_spec["User"], "0")
+
+    def test_reprovision_keeps_existing_dashboard_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx", "host_data_dir": str(root / "host")})
+
+            manager.install_stack()
+            dashboard_path = root / "data" / "generated" / "bocki-all-in-one-v1.json"
+            dashboard_path.write_text('{"title":"Meine UI-Anpassung"}\n', encoding="utf-8")
+            manager.install_stack()
+
+            self.assertEqual(dashboard_path.read_text(encoding="utf-8"), '{"title":"Meine UI-Anpassung"}\n')
 
     def test_reinstall_recreates_services_and_keeps_data(self):
         with tempfile.TemporaryDirectory() as directory:
