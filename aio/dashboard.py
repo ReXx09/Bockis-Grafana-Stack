@@ -217,13 +217,24 @@ def loki_logs(panel_id: int, title: str, x: int, y: int) -> dict[str, Any]:
 
 
 def _system_flux(bucket: str, measurement: str, field: str, filter_extra: str = "", group_by: str = "", derivative: bool = False, host_filter: str = "") -> str:
-    filters = [f'r._measurement == "{measurement}"', f'r._field == "{field}"']
+    source_field = field
+    transform_active_cpu = measurement == "cpu" and field == "usage_active"
+    if transform_active_cpu:
+        source_field = "usage_idle"
+    elif measurement == "processes" and field == "n_total":
+        source_field = "total"
+    filters = [f'r._measurement == "{measurement}"', f'r._field == "{source_field}"']
     if filter_extra:
         filters.append(filter_extra)
     if host_filter:
         filters.append(host_filter)
     extra_filter = " and " + " and ".join(filters[2:]) if len(filters) > 2 else ""
     query = f'from(bucket: "{bucket}")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "{field}"{extra_filter})'
+    if transform_active_cpu:
+        query = query.replace(f'r._field == "{field}"', f'r._field == "{source_field}"')
+        query += '\n  |> map(fn: (r) => ({ r with _value: 100.0 - r._value }))'
+    elif source_field != field:
+        query = query.replace(f'r._field == "{field}"', f'r._field == "{source_field}"')
     if derivative:
         query += '\n  |> derivative(unit: 1s, nonNegative: true)'
     if group_by:
