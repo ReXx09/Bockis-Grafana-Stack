@@ -72,6 +72,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent", host_filter=host_filter),
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
             system_timeseries(204, "Netzwerk Empfang", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True, host_filter=host_filter),
+            system_timeseries(206, "CPU-Temperatur", 0, 16, bucket, "temp", "temp", group_by="name", host_filter=host_filter),
         ]),
     ]
     if include_temperature:
