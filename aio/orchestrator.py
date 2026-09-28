@@ -204,7 +204,46 @@ def add_port(bindings: dict[str, list[dict[str, str]]], exposed: dict[str, dict[
 def telegraf_config(config: dict[str, Any]) -> str:
     uptime_kuma = str(config.get("uptime_kuma_url", "")).strip().rstrip("/")
     uptime_block = f'\n[[inputs.prometheus]]\n  urls = ["{uptime_kuma}/metrics"]\n  metric_version = 2\n' if uptime_kuma else ""
-    return f'''[agent]\n  interval = "10s"\n  round_interval = true\n  hostname = "bocki-aio"\n\n[[outputs.influxdb_v2]]\n  urls = ["http://influxdb:8086"]\n  token = "{config["influx_admin_token"]}"\n  organization = "{config["organization"]}"\n  bucket = "{config["bucket"]}"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.mem]]\n[[inputs.system]]\n[[inputs.net]]\n[[inputs.disk]]\n  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]\n[[inputs.diskio]]\n[[inputs.processes]]\n[[inputs.temp]]\n# SMART ist optional und benoetigt ein Telegraf-Image mit smartmontools.\n[[inputs.docker]]\n  endpoint = "unix:///var/run/docker.sock"\n  gather_services = false\n  timeout = "5s"\n  perdevice = true\n  total = true\n{uptime_block}\n# Optional: USV-Metriken (benoetigt einen laufenden apcupsd auf dem Unraid-Host)\n# [[inputs.apcupsd]]\n#   servers = ["tcp://127.0.0.1:3551"]\n\n# Optional: Mainboard-/CPU-Sensoren (benoetigt lm-sensors auf dem Host und Zugriff auf /sys)\n# [[inputs.sensors]]\n'''
+    return f'''[agent]
+    interval = "10s"
+    round_interval = true
+    hostname = "bocki-aio"
+
+[[outputs.influxdb_v2]]
+    urls = ["http://influxdb:8086"]
+    token = "{config["influx_admin_token"]}"
+    organization = "{config["organization"]}"
+    bucket = "{config["bucket"]}"
+
+[[inputs.cpu]]
+    percpu = true
+    totalcpu = true
+
+[[inputs.mem]]
+[[inputs.system]]
+[[inputs.net]]
+[[inputs.disk]]
+    ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay"]
+[[inputs.diskio]]
+[[inputs.processes]]
+[[inputs.temp]]
+[[inputs.smart]]
+    path_smartctl = "/usr/sbin/smartctl"
+    attributes = true
+[[inputs.docker]]
+    endpoint = "unix:///var/run/docker.sock"
+    gather_services = false
+    timeout = "5s"
+    perdevice = true
+    total = true
+{uptime_block}
+# Optional: USV-Metriken (benoetigt einen laufenden apcupsd auf dem Unraid-Host)
+# [[inputs.apcupsd]]
+#   servers = ["tcp://127.0.0.1:3551"]
+
+# Optional: Mainboard-/CPU-Sensoren (benoetigt lm-sensors auf dem Host und Zugriff auf /sys)
+# [[inputs.sensors]]
+'''
 
 
 def grafana_datasource(config: dict[str, Any]) -> str:

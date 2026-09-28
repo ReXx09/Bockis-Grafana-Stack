@@ -14,7 +14,7 @@ SERVICE_DEFINITIONS = {
         "healthcheck": ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health || exit 1"],
     },
     "telegraf": {
-        "image": "telegraf:1.34",
+        "image": "ghcr.io/rexx09/bockis-telegraf:1.34-smart",
         "internal_port": None,
         "health_url": None,
     },

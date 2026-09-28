@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>Bocki-Telegraf-Unraid</Name>
-  <Repository>telegraf:1.34</Repository>
+  <Repository>ghcr.io/rexx09/bockis-telegraf:1.34-smart</Repository>
   <Registry>https://hub.docker.com/_/telegraf</Registry>
   <Network>bridge</Network>
   <MyIP/>

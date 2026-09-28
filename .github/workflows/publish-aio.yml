@@ -8,6 +8,7 @@ on:
 
 env:
   IMAGE_NAME: ghcr.io/rexx09/bockis-grafana-aio
+  TELEGRAF_IMAGE_NAME: ghcr.io/rexx09/bockis-telegraf
 
 jobs:
   publish:
@@ -58,3 +59,20 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             AIO_COMMIT=${{ github.sha }}
+
+      - name: Telegraf metadata
+        id: telegraf-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.TELEGRAF_IMAGE_NAME }}
+          tags: |
+            type=raw,value=1.34-smart,enable={{is_default_branch}}
+
+      - name: Build and push Telegraf with smartmontools
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/telegraf
+          file: docker/telegraf/Dockerfile
+          push: true
+          tags: ${{ steps.telegraf-meta.outputs.tags }}
+          labels: ${{ steps.telegraf-meta.outputs.labels }}

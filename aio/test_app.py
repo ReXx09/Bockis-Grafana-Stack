@@ -358,7 +358,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("disableDeletion: true", dashboard_provider)
             self.assertIn("updateIntervalSeconds: 0", dashboard_provider)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
-            telegraf_spec = next(spec for spec in specs if spec["Image"] == "telegraf:1.34")
+            telegraf_spec = next(spec for spec in specs if spec["Image"] == "ghcr.io/rexx09/bockis-telegraf:1.34-smart")
             self.assertIn("/mnt:/mnt:ro", telegraf_spec["HostConfig"]["Binds"])
             self.assertIn("/sys:/sys:ro", telegraf_spec["HostConfig"]["Binds"])
             self.assertIn("/dev:/dev:ro", telegraf_spec["HostConfig"]["Binds"])
@@ -369,7 +369,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("[[inputs.processes]]", telegraf_conf)
             self.assertIn("total = true", telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
-            self.assertNotIn("[[inputs.smart]]", telegraf_conf)
+            self.assertIn("[[inputs.smart]]", telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
@@ -423,7 +423,7 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue(all(spec["Labels"]["net.unraid.docker.managed"] == "dockerman" for spec in specs))
             grafana_spec = next(spec for spec in specs if spec["Image"] == "grafana/grafana:11.5.2")
             self.assertEqual(grafana_spec["Labels"]["net.unraid.docker.webui"], "http://[IP]:[PORT:3000]")
-            checked_specs = [spec for spec in specs if spec["Image"] != "telegraf:1.34"]
+            checked_specs = [spec for spec in specs if spec["Image"] != "ghcr.io/rexx09/bockis-telegraf:1.34-smart"]
             self.assertTrue(all("Healthcheck" in spec for spec in checked_specs))
             loki_spec = next(spec for spec in specs if spec["Image"] == "grafana/loki:3.4.2")
             self.assertEqual(loki_spec["User"], "0")
