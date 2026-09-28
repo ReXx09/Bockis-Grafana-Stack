@@ -370,6 +370,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("total = true", telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
             self.assertIn("[[inputs.smart]]", telegraf_conf)
+            self.assertIn('path_smartctl = "/usr/sbin/smartctl"', telegraf_conf)
             dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
             self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
@@ -413,7 +414,7 @@ class ManagerTests(unittest.TestCase):
                     core_panels = [panel for panel in payload["panels"] if panel.get("title") == "CPU-Kern-Temperaturen"]
                     self.assertEqual(len(core_panels), 1)
                     self.assertEqual(core_panels[0]["type"], "bargauge")
-                    self.assertIn('r.name =~ /(?i)core/', core_panels[0]["targets"][0]["query"])
+                    self.assertIn('r.sensor =~ /(?i)core/', core_panels[0]["targets"][0]["query"])
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

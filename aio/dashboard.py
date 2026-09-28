@@ -231,8 +231,8 @@ def flatten_dashboard_sections(sections: list[dict[str, Any]]) -> list[dict[str,
 def smart_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket: str, host_filter: str) -> dict[str, Any]:
     query = f'''from(bucket: "{bucket}")
     |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-    |> filter(fn: (r) => r._measurement == "smart" and r._field =~ /temp/ and {host_filter})
-  |> group(columns: ["disk"])
+        |> filter(fn: (r) => r._measurement == "smart_device" and r._field == "temp_c" and {host_filter})
+    |> group(columns: ["device"])
   |> last()'''
     return {
         "id": panel_id,
@@ -336,8 +336,8 @@ def cpu_core_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket
     filters = f' and {host_filter}' if host_filter else ""
     query = f'''from(bucket: "{bucket}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "temp" and r._field == "temp" and r.name =~ /(?i)core/{filters})
-  |> group(columns: ["name"])
+    |> filter(fn: (r) => r._measurement == "temp" and r._field == "temp" and r.sensor =~ /(?i)core/{filters})
+    |> group(columns: ["sensor"])
   |> last()'''
     return {
         "id": panel_id,
