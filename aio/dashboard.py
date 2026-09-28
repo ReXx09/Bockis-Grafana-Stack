@@ -61,7 +61,7 @@ def system_dashboard_json(bucket: str) -> str:
 
 
 def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, include_docker: bool = False, include_temperature: bool = False) -> str:
-    panels: list[dict[str, Any]] = [
+    sections: list[dict[str, Any]] = [
         dashboard_section(1, "Uebersicht", [
             system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter),
             system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=host_filter),
@@ -75,9 +75,9 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
         ]),
     ]
     if include_temperature:
-        panels[1]["panels"].append(system_timeseries(205, "CPU-Temperatur", 0, 16, bucket, "cpu_temperature", "value", host_filter=host_filter))
+        sections[1]["panels"].append(system_timeseries(205, "CPU-Temperatur", 0, 16, bucket, "cpu_temperature", "value", host_filter=host_filter))
     if include_docker:
-        panels.append(dashboard_section(3, "Docker", [
+        sections.append(dashboard_section(3, "Docker", [
             system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name", host_filter=host_filter),
             system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name", host_filter=host_filter),
         ]))
@@ -92,7 +92,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
         "time": {"from": "now-6h", "to": "now"},
         "templating": {"list": []},
         "links": dashboard_switch_links(),
-        "panels": panels,
+        "panels": flatten_dashboard_sections(sections),
     }
     return json.dumps(dashboard, indent=2) + "\n"
 
@@ -119,7 +119,7 @@ def dashboard_switch_links() -> list[dict[str, Any]]:
 
 
 def unified_dashboard_json(bucket: str) -> str:
-    panels = [
+    panels = flatten_dashboard_sections([
         dashboard_section(1, "Uebersicht", [
             system_stat(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
             system_stat(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
@@ -148,7 +148,7 @@ def unified_dashboard_json(bucket: str) -> str:
             loki_timeseries(601, "Pass / Block im Zeitverlauf", 0, 0),
             loki_logs(602, "Firewall-Ereignisse", 12, 0),
         ]),
-    ]
+    ])
     dashboard = {
         "uid": "bocki-all-in-one",
         "title": "Bocki Gesamtuebersicht",
@@ -167,6 +167,26 @@ def unified_dashboard_json(bucket: str) -> str:
 
 def dashboard_section(panel_id: int, title: str, panels: list[dict[str, Any]]) -> dict[str, Any]:
     return {"id": panel_id, "type": "row", "title": title, "collapsed": False, "panels": panels}
+
+
+def flatten_dashboard_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flattened: list[dict[str, Any]] = []
+    section_y = 0
+    for section in sections:
+        row = {key: value for key, value in section.items() if key != "panels"}
+        row["gridPos"] = {"h": 1, "w": 24, "x": 0, "y": section_y}
+        row["panels"] = []
+        flattened.append(row)
+        section_y += 1
+        section_panels = section.get("panels", [])
+        for panel in section_panels:
+            panel = dict(panel)
+            grid_pos = dict(panel.get("gridPos", {}))
+            grid_pos["y"] = grid_pos.get("y", 0) + section_y
+            panel["gridPos"] = grid_pos
+            flattened.append(panel)
+        section_y += max((panel.get("gridPos", {}).get("h", 0) for panel in section_panels), default=0)
+    return flattened
 
 
 def loki_stat(panel_id: int, title: str, selector: str, color: str) -> dict[str, Any]:
