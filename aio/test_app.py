@@ -418,6 +418,11 @@ class ManagerTests(unittest.TestCase):
                     self.assertEqual(len(core_panels), 1)
                     self.assertEqual(core_panels[0]["type"], "bargauge")
                     self.assertIn('r.sensor =~ /(?i)core/', core_panels[0]["targets"][0]["query"])
+                    usage_panels = [panel for panel in payload["panels"] if panel.get("title") == "CPU-Kerne (%)"]
+                    self.assertEqual(len(usage_panels), 1)
+                    self.assertEqual(usage_panels[0]["type"], "bargauge")
+                    self.assertEqual(usage_panels[0]["options"]["orientation"], "vertical")
+                    self.assertIn('100.0 - r._value', usage_panels[0]["targets"][0]["query"])
             alloy = (root / "data" / "generated" / "alloy-config.alloy").read_text(encoding="utf-8")
             self.assertIn('loki.process "filterlog"', alloy)
             self.assertIn("stage.structured_metadata", alloy)

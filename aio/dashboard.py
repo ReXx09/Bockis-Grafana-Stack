@@ -41,7 +41,7 @@ def system_dashboard_json(bucket: str) -> str:
         percentage_gauge_panel(2, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
         system_timeseries(3, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
         system_timeseries(4, "Netzwerk-Durchsatz (Bytes/s)", 12, 8, bucket, "net", "bytes_recv", group_by="interface", derivative=True),
-        system_timeseries(7, "CPU-Kerne (%)", 0, 24, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
+        cpu_core_usage_panel(7, "CPU-Kerne (%)", 0, 24, bucket),
         system_stat(5, "Laufende Container", 0, 16, bucket, "docker", "n_containers_running"),
         system_table(6, "Container CPU (%)", 6, 16, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
         system_stat(8, "Uptime", 18, 16, bucket, "system", "uptime"),
@@ -76,7 +76,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
             system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path", host_filter=host_filter),
             network_rate_panel(204, "Download", 12, 8, bucket, "bytes_recv", host_filter),
             system_timeseries(206, "CPU-Temperatur", 0, 16, bucket, "temp", "temp", group_by="name", host_filter=host_filter),
-                system_timeseries(207, "CPU-Kerne (%)", 12, 16, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu", host_filter=host_filter),
+                cpu_core_usage_panel(207, "CPU-Kerne (%)", 12, 16, bucket, host_filter),
                 cpu_core_temperature_panel(210, "CPU-Kern-Temperaturen", 0, 32, bucket, host_filter),
             network_rate_panel(209, "Upload", 12, 24, bucket, "bytes_sent", host_filter),
         ]),
@@ -256,6 +256,43 @@ def smart_temperature_panel(panel_id: int, title: str, x: int, y: int, bucket: s
         },
         "options": {
             "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": True,
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        },
+    }
+
+
+def cpu_core_usage_panel(panel_id: int, title: str, x: int, y: int, bucket: str, host_filter: str = "") -> dict[str, Any]:
+    host_clause = f' and {host_filter}' if host_filter else ""
+    query = f'''from(bucket: "{bucket}")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_idle" and r.cpu != "cpu-total"{host_clause})
+  |> map(fn: (r) => ({{r with _value: 100.0 - r._value}}))
+  |> group(columns: ["cpu"])
+  |> last()'''
+    return {
+        "id": panel_id,
+        "type": "bargauge",
+        "title": title,
+        "gridPos": {"h": 10, "w": 12, "x": x, "y": y},
+        "datasource": {"type": "influxdb", "uid": "InfluxDB"},
+        "targets": [{"refId": "A", "query": query}],
+        "fieldConfig": {
+            "defaults": {
+                "unit": "percent",
+                "min": 0,
+                "max": 100,
+                "thresholds": {"mode": "absolute", "steps": [
+                    {"color": "green", "value": None},
+                    {"color": "yellow", "value": 60},
+                    {"color": "red", "value": 85},
+                ]},
+            },
+            "overrides": [],
+        },
+        "options": {
+            "orientation": "vertical",
             "displayMode": "gradient",
             "showUnfilled": True,
             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
