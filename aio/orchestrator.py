@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .dashboard import dashboard_json, host_dashboard_json, system_dashboard_json, unified_dashboard_json
+from .dashboard import system_dashboard_json
 from .dashboards.opnsense import dashboard as opnsense_dashboard
 from .dashboards.overview import dashboard as overview_dashboard
 from .dashboards.raspberry import dashboard as raspberry_dashboard
@@ -48,15 +48,28 @@ class StackOrchestrator:
             directory.chmod(0o777)
         custom_telegraf = self.host_data_dir / "telegraf.custom.conf"
         telegraf_content = custom_telegraf.read_text(encoding="utf-8") if custom_telegraf.exists() else telegraf_config(config)
+        legacy_dashboards = {
+            "opnsense-firewall-v1.json": "bocki-opnsense-firewall",
+            "bocki-all-in-one-v1.json": "bocki-all-in-one",
+        }
+        for directory in (self.generated_dir, self.host_generated_dir):
+            for name, uid in legacy_dashboards.items():
+                target = directory / name
+                if not target.exists():
+                    continue
+                try:
+                    is_legacy = json.loads(target.read_text(encoding="utf-8")).get("uid") == uid
+                except (OSError, json.JSONDecodeError):
+                    is_legacy = False
+                if is_legacy:
+                    target.unlink()
         files = {
             "loki-config.yml": LOKI_CONFIG,
             "alloy-config.alloy": ALLOY_CONFIG,
             "telegraf.conf": telegraf_content,
             "grafana-datasource.yml": grafana_datasource(config),
             "grafana-dashboards.yml": GRAFANA_DASHBOARDS,
-            "opnsense-firewall-v1.json": dashboard_json(),
             "system-metrics-v1.json": system_dashboard_json(config["bucket"]),
-            "bocki-all-in-one-v1.json": unified_dashboard_json(config["bucket"], bool(config.get("uptime_kuma_url"))),
             "bocki-all-in-one-v2.json": overview_dashboard(config["bucket"], bool(config.get("uptime_kuma_url"))),
             "bocki-unraid-v2.json": unraid_dashboard(config["bucket"]),
             "bocki-raspberry-v1.json": raspberry_dashboard(config["bucket"]),

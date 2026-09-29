@@ -410,8 +410,7 @@ class ManagerTests(unittest.TestCase):
             self.assertIn('/dev/sdb -d sat', telegraf_conf)
             self.assertIn('read_method = "sequential"', telegraf_conf)
             self.assertIn('nocheck = "never"', telegraf_conf)
-            dashboard = root / "data" / "generated" / "opnsense-firewall-v1.json"
-            self.assertEqual(json.loads(dashboard.read_text(encoding="utf-8"))["uid"], "bocki-opnsense-firewall")
+            self.assertFalse((root / "data" / "generated" / "opnsense-firewall-v1.json").exists())
             system_dashboard = root / "data" / "generated" / "system-metrics-v1.json"
             system_payload = json.loads(system_dashboard.read_text(encoding="utf-8"))
             self.assertEqual(system_payload["uid"], "bocki-system-metrics")
