@@ -53,7 +53,7 @@ class StackOrchestrator:
             "opnsense-firewall-v1.json": dashboard_json(),
             "system-metrics-v1.json": system_dashboard_json(config["bucket"]),
             "bocki-all-in-one-v1.json": unified_dashboard_json(config["bucket"], bool(config.get("uptime_kuma_url"))),
-            "bocki-unraid-v1.json": host_dashboard_json(config["bucket"], "bocki-unraid", "Bocki Unraid", 'r.host == "bocki-aio"', include_docker=True),
+            "bocki-unraid-v2.json": host_dashboard_json(config["bucket"], "bocki-unraid", "Bocki Unraid", 'r.host == "bocki-aio"', include_docker=True),
             "bocki-raspberry-v1.json": host_dashboard_json(config["bucket"], "bocki-raspberry", "Bocki Raspberry", 'r.host =~ /^raspi/', include_temperature=True),
             "bocki-opnsense-v1.json": host_dashboard_json(config["bucket"], "bocki-opnsense", "Bocki OPNsense", 'r.host == "opnsense"'),
         }
@@ -130,7 +130,7 @@ class StackOrchestrator:
                 f"{self.host_generated_dir / 'opnsense-firewall-v1.json'}:/var/lib/grafana/dashboards/opnsense-firewall-v1.json:ro",
                 f"{self.host_generated_dir / 'system-metrics-v1.json'}:/var/lib/grafana/dashboards/system-metrics-v1.json:ro",
                 f"{self.host_generated_dir / 'bocki-all-in-one-v1.json'}:/var/lib/grafana/dashboards/bocki-all-in-one-v1.json:ro",
-                f"{self.host_generated_dir / 'bocki-unraid-v1.json'}:/var/lib/grafana/dashboards/bocki-unraid-v1.json:ro",
+                f"{self.host_generated_dir / 'bocki-unraid-v2.json'}:/var/lib/grafana/dashboards/bocki-unraid-v2.json:ro",
                 f"{self.host_generated_dir / 'bocki-raspberry-v1.json'}:/var/lib/grafana/dashboards/bocki-raspberry-v1.json:ro",
                 f"{self.host_generated_dir / 'bocki-opnsense-v1.json'}:/var/lib/grafana/dashboards/bocki-opnsense-v1.json:ro",
             ]

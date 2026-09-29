@@ -428,7 +428,7 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "dtdurations" for panel in uptime_panels))
             self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one", "bocki-unraid", "bocki-raspberry", "bocki-opnsense"})
             for filename, uid, host_filter in (
-                ("bocki-unraid-v1.json", "bocki-unraid", 'r.host == "bocki-aio"'),
+                ("bocki-unraid-v2.json", "bocki-unraid", 'r.host == "bocki-aio"'),
                 ("bocki-raspberry-v1.json", "bocki-raspberry", "r.host =~ /^raspi/"),
                 ("bocki-opnsense-v1.json", "bocki-opnsense", 'r.host == "opnsense"'),
             ):
