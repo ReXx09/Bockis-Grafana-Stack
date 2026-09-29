@@ -60,7 +60,7 @@ class StackOrchestrator:
         for name, content in files.items():
             for directory in (self.generated_dir, self.host_generated_dir):
                 target = directory / name
-                if name.endswith("-v1.json") and target.exists():
+                if name.endswith(".json") and target.exists():
                     continue
                 target.write_text(content, encoding="utf-8")
 

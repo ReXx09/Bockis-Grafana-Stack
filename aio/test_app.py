@@ -481,6 +481,22 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(dashboard_path.read_text(encoding="utf-8"), '{"title":"Meine UI-Anpassung"}\n')
 
+    def test_reprovision_keeps_existing_v2_dashboard_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(root / "data", docker)
+            manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx", "host_data_dir": str(root / "host")})
+
+            manager.install_stack()
+            dashboard_path = root / "data" / "generated" / "bocki-unraid-v2.json"
+            dashboard_path.write_text('{"title":"Meine Unraid UI-Anpassung"}\n', encoding="utf-8")
+            manager.install_stack()
+
+            self.assertEqual(dashboard_path.read_text(encoding="utf-8"), '{"title":"Meine Unraid UI-Anpassung"}\n')
+
     def test_reinstall_recreates_services_and_keeps_data(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
