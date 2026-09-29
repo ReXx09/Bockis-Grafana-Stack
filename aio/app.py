@@ -162,14 +162,7 @@ class Manager:
     def reinstall_stack(self) -> dict[str, Any]:
         if not self.config.get("configured"):
             raise ValueError("Bitte zuerst das Setup speichern")
-        backup_dir = self.data_dir / "backups" / secrets.token_hex(6)
-        backup_dir.mkdir(parents=True, exist_ok=False)
-        for path in (self.config_path, self.data_dir / "admin_password.txt"):
-            if path.exists():
-                shutil.copy2(path, backup_dir / path.name)
-        generated_dir = self.data_dir / "generated"
-        if generated_dir.exists():
-            shutil.copytree(generated_dir, backup_dir / "generated")
+        backup_dir = self.backup_grafana_dashboards(include_config=True)
         host_data_dir = Path(self.config.get("host_data_dir", os.getenv("AIO_HOST_DATA_DIR", "/mnt/user/appdata/bocki-grafana-aio")))
         try:
             recreated = StackOrchestrator(self.data_dir, host_data_dir, self.docker).reinstall(self.config)
@@ -180,6 +173,34 @@ class Manager:
         self.config.pop("last_error", None)
         self.config_path.write_text(json.dumps(self.config, indent=2) + "\n", encoding="utf-8")
         return {"status": "reinstalled", "recreated": recreated, "backup": str(backup_dir)}
+
+    def backup_grafana_dashboards(self, include_config: bool = False) -> Path:
+        backup_dir = self.data_dir / "backups" / secrets.token_hex(6)
+        backup_dir.mkdir(parents=True, exist_ok=False)
+        host_data_dir = Path(self.config.get("host_data_dir", DEFAULT_CONFIG["host_data_dir"]))
+        dashboard_dir = backup_dir / "dashboards"
+        dashboard_dir.mkdir()
+        sources = [self.data_dir / "generated", host_data_dir / "generated"]
+        copied: set[str] = set()
+        for source in sources:
+            if not source.exists():
+                continue
+            for path in source.glob("*.json"):
+                if path.name in copied:
+                    continue
+                shutil.copy2(path, dashboard_dir / path.name)
+                copied.add(path.name)
+        grafana_db = host_data_dir / "grafana" / "grafana.db"
+        if grafana_db.exists():
+            shutil.copy2(grafana_db, backup_dir / "grafana.db")
+        if include_config:
+            for path in (self.config_path, self.data_dir / "admin_password.txt"):
+                if path.exists():
+                    shutil.copy2(path, backup_dir / path.name)
+            generated_dir = self.data_dir / "generated"
+            if generated_dir.exists():
+                shutil.copytree(generated_dir, backup_dir / "manager-generated")
+        return backup_dir
 
     def proxy_target(self, route: str) -> tuple[str, int, str] | None:
         ports = {
@@ -504,6 +525,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Reinstall muss bestaetigt werden")
                 self._send(HTTPStatus.OK, self.manager.reinstall_stack())
                 return
+            if self.path == "/api/backup/dashboards":
+                backup_dir = self.manager.backup_grafana_dashboards()
+                self._send(HTTPStatus.OK, {"status": "backed-up", "backup": str(backup_dir)})
+                return
             if self.path == "/api/manager/update":
                 if payload.get("confirm") is not True:
                     raise ValueError("Manager-Update muss bestaetigt werden")
@@ -603,7 +628,7 @@ INDEX_HTML = """<!doctype html>
 <body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Der Manager kann sein Image selbst aktualisieren und mit der vorhandenen Container-Konfiguration neu starten.</p></header>
 <nav class="main-nav" aria-label="Hauptnavigation"><button class="active" data-view="setup-view" type="button">Ersteinrichtung</button><button data-view="services-view" type="button">Dienste</button><button data-view="telegraf-view" type="button">Telegraf</button></nav>
 <section id="setup-view" class="view-section active"><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Server-IP oder Hostname<input name="public_host" placeholder="z.B. 192.168.8.111"></label><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label><label>Uptime Kuma URL<input name="uptime_kuma_url" type="url" placeholder="http://uptime-kuma:3001"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
-<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button data-stack-action="start" type="button">Stack starten</button> <button data-stack-action="stop" type="button">Stack stoppen</button> <button data-stack-action="restart" type="button">Stack neu starten</button> <button data-stack-action="update" type="button">Stack aktualisieren</button> <button data-manager-action="update" type="button">Manager aktualisieren</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
+<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button data-stack-action="start" type="button">Stack starten</button> <button data-stack-action="stop" type="button">Stack stoppen</button> <button data-stack-action="restart" type="button">Stack neu starten</button> <button data-stack-action="update" type="button">Stack aktualisieren</button> <button data-manager-action="update" type="button">Manager aktualisieren</button> <button data-manager-action="backup" type="button">Grafana sichern</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
 <section id="telegraf-view" class="view-section"><h2>Telegraf-Konfiguration</h2><p class="muted">Die aktive Konfiguration wird vor dem Speichern gesichert und nach dem Speichern neu geladen.</p><textarea id="telegraf-config" rows="20" spellcheck="false" style="width:100%;box-sizing:border-box;font:12px monospace;padding:10px;border:1px solid #bdc8be;border-radius:5px"></textarea><p><button id="telegraf-load" type="button">Laden</button> <button id="telegraf-save" type="button">Speichern und neu starten</button></p></section>
 <section id="central-log"><h2>Zentrales Live-Log</h2><p id="progress">Bereit.</p><pre id="live-log">Noch keine Aktionen.</pre><p><button id="clear-log" type="button">Log leeren</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
@@ -630,6 +655,7 @@ document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
 document.getElementById('telegraf-save').addEventListener('click',async()=>{const button=document.getElementById('telegraf-save');button.disabled=true;setProgress('Telegraf-Konfiguration wird gespeichert...');const response=await fetch('/api/config/telegraf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:document.getElementById('telegraf-config').value})});const data=await response.json();button.disabled=false;if(data.error){setProgress('Telegraf-Speichern fehlgeschlagen: '+data.error);document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Telegraf-Konfiguration gespeichert und Telegraf neu gestartet.';setProgress(document.getElementById('message').textContent)});loadTelegraf();
 document.querySelector('[data-stack-action="start"]').parentElement.addEventListener('click',async event=>{const button=event.target.closest('[data-stack-action]');if(!button)return;const action=button.dataset.stackAction;const update=action==='update';if((action==='stop'||action==='restart'||update)&&!confirm(update?'Alle fuenf Fachcontainer werden aktualisiert und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?':`Alle fuenf Fachcontainer werden ${action==='stop'?'gestoppt':'neu gestartet'}. Fortfahren?`))return;button.disabled=true;setProgress(`Stack: ${action} gestartet...`);const response=await fetch(`/api/stack/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(update?{confirm:true}:{})});const data=await response.json();button.disabled=false;const message=data.error||`Stack: ${action} abgeschlossen.`;document.getElementById('message').textContent=message;setProgress(message);state()});
 document.querySelector('[data-manager-action="update"]').addEventListener('click',async event=>{const button=event.currentTarget;if(!confirm('Der Manager wird aktualisiert und kurz neu gestartet. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?'))return;button.disabled=true;setProgress('Manager-Update wird vorbereitet...');try{const response=await fetch('/api/manager/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});const data=await response.json();if(data.error){throw new Error(data.error)}setProgress(data.status==='already-current'?'Manager ist bereits aktuell.':'Manager wurde neu erstellt; Seite wird neu geladen.');if(data.status==='recreated')setTimeout(()=>location.reload(),3000)}catch(error){button.disabled=false;setProgress(`Manager-Update fehlgeschlagen: ${error.message}`)}});
+document.querySelector('[data-manager-action="backup"]').addEventListener('click',async event=>{const button=event.currentTarget;button.disabled=true;setProgress('Grafana-Backup wird erstellt...');try{const response=await fetch('/api/backup/dashboards',{method:'POST'});const data=await response.json();if(data.error){throw new Error(data.error)}setProgress(`Grafana-Backup erstellt: ${data.backup}`)}catch(error){setProgress(`Grafana-Backup fehlgeschlagen: ${error.message}`)}finally{button.disabled=false}});
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));setProgress('Konfiguration wird gespeichert...');const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;setProgress(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';setProgress('Konfiguration gespeichert; Containerstatus wird geprueft...');const fieldLabels={public_host:'Server-IP/Hostname',organization:'Organisation',bucket:'Bucket',retention:'Retention',grafana_admin_user:'Grafana Benutzer',grafana_admin_password:'Grafana Passwort',influx_admin_password:'InfluxDB Passwort'};(data.changed_fields||[]).forEach(field=>{logEvent(`Geaendert: ${fieldLabels[field]||field}`)});if(data.grafana_password_synced===true){logEvent('Grafana-Passwort wurde im laufenden Container sofort aktualisiert.')}else if(data.grafana_password_synced===false){logEvent('Grafana-Passwort konnte nicht sofort gesetzt werden (Container laeuft evtl. noch nicht).')}if(data.influx_password_synced===true){logEvent('InfluxDB-Passwort wurde im laufenden Container sofort aktualisiert.')}else if(data.influx_password_synced===false){logEvent('InfluxDB-Passwort konnte nicht sofort gesetzt werden (Container laeuft evtl. noch nicht).')}const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;setProgress(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;setProgress(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
 </script></body></html>"""
 

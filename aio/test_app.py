@@ -516,6 +516,25 @@ class ManagerTests(unittest.TestCase):
             self.assertEqual(persistent.read_text(encoding="utf-8"), "keep")
             self.assertTrue((root / "data" / "backups").exists())
 
+    def test_backup_grafana_dashboards_copies_json_and_database(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            socket_path = root / "docker.sock"
+            socket_path.touch()
+            manager = Manager(root / "data", self.FakeDocker(str(socket_path)))
+            manager.config["host_data_dir"] = str(root / "host")
+            generated = root / "host" / "generated"
+            grafana = root / "host" / "grafana"
+            generated.mkdir(parents=True)
+            grafana.mkdir(parents=True)
+            (generated / "bocki-unraid-v2.json").write_text('{"title":"Custom"}\n', encoding="utf-8")
+            (grafana / "grafana.db").write_bytes(b"sqlite")
+
+            backup = manager.backup_grafana_dashboards()
+
+            self.assertEqual((backup / "dashboards" / "bocki-unraid-v2.json").read_text(encoding="utf-8"), '{"title":"Custom"}\n')
+            self.assertEqual((backup / "grafana.db").read_bytes(), b"sqlite")
+
     def test_custom_telegraf_config_survives_provisioning(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
