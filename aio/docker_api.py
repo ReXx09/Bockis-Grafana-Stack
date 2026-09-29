@@ -121,6 +121,9 @@ class DockerClient:
         safe_name = quote(name, safe="")
         self.request("DELETE", f"/containers/{safe_name}?force=1")
 
+    def rename(self, name: str, new_name: str) -> None:
+        self.request("POST", f"/containers/{quote(name, safe='')}/rename?name={quote(new_name, safe='')}")
+
     def action(self, container_name: str, action: str) -> None:
         safe_name = quote(container_name, safe="")
         endpoint = {"start": "start", "stop": "stop", "restart": "restart"}[action]

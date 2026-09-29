@@ -38,6 +38,9 @@ class ManagerTests(unittest.TestCase):
         def remove(self, name):
             self.calls.append(("remove", name))
 
+        def rename(self, name, new_name):
+            self.calls.append(("rename", name, new_name))
+
         def create_container(self, name, spec):
             self.calls.append(("create", name, spec))
 
@@ -45,6 +48,14 @@ class ManagerTests(unittest.TestCase):
             self.calls.append(("start", name))
 
         def inspect(self, name):
+            if name == "bocki-grafana-aio":
+                return {
+                    "Id": "manager123",
+                    "Image": "sha256:old",
+                    "Config": {"Image": "ghcr.io/rexx09/bockis-grafana-aio:latest", "Env": ["AIO_VERSION=0.3.28"], "Labels": {}},
+                    "HostConfig": {"Binds": ["/data:/data"], "RestartPolicy": {"Name": "unless-stopped"}, "NetworkMode": "bridge"},
+                    "NetworkSettings": {"Networks": {"bridge": {"Aliases": ["bocki-grafana-aio"]}}},
+                }
             if name != "bocki-aio-grafana":
                 raise DockerApiError("no such container")
             return {"Id": "abc123", "State": {"Status": "running"}, "NetworkSettings": {"Networks": {"bocki-monitoring": {"IPAddress": "172.30.0.7"}}}, "Image": "sha256:old"}
@@ -128,6 +139,20 @@ class ManagerTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "requested")
             self.assertIn(("bocki-aio-grafana", "restart"), docker.calls)
+
+    def test_update_manager_recreates_container_after_pulling_new_image(self):
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "docker.sock"
+            socket_path.touch()
+            docker = self.FakeDocker(str(socket_path))
+            manager = Manager(Path(directory) / "data", docker)
+
+            result = manager.update_manager()
+
+            self.assertEqual(result["status"], "recreated")
+            self.assertLess(docker.calls.index(("pull", "ghcr.io/rexx09/bockis-grafana-aio:latest")), docker.calls.index(("rename", "bocki-grafana-aio", "bocki-grafana-aio-old")))
+            self.assertLess(docker.calls.index(("rename", "bocki-grafana-aio", "bocki-grafana-aio-old")), docker.calls.index(("start", "bocki-grafana-aio")))
+            self.assertEqual(docker.calls[-1], ("remove", "bocki-grafana-aio-old"))
 
     def test_stack_action_controls_all_services(self):
         with tempfile.TemporaryDirectory() as directory:

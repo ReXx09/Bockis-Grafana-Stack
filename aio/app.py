@@ -279,6 +279,54 @@ class Manager:
         self.docker.action(container_name, action)
         return {"service": service, "action": action, "status": "requested"}
 
+    def update_manager(self) -> dict[str, Any]:
+        """Pull and replace this container while retaining its Docker configuration."""
+        if not Path(self.docker.socket_path).exists():
+            raise DockerUnavailable("Docker-Socket nicht gefunden; Manager mit /var/run/docker.sock starten")
+        container_name = os.getenv("AIO_CONTAINER_NAME", "bocki-grafana-aio")
+        image = os.getenv("AIO_IMAGE", "ghcr.io/rexx09/bockis-grafana-aio:latest")
+        details = self.docker.inspect(container_name)
+        old_image_id = str(details.get("Image", ""))
+        self.docker.pull(image)
+        new_image_id = self.docker.image_id(image)
+        if old_image_id and new_image_id and old_image_id == new_image_id:
+            return {"action": "update-manager", "status": "already-current", "image": image}
+
+        replacement_name = f"{container_name}-old"
+        if self.docker.container_exists(replacement_name):
+            raise DockerApiError(f"Zwischencontainer existiert bereits: {replacement_name}")
+        config = details.get("Config", {})
+        host_config = details.get("HostConfig", {})
+        networks = details.get("NetworkSettings", {}).get("Networks", {})
+        spec = {key: config[key] for key in (
+            "Hostname", "Domainname", "User", "AttachStdin", "AttachStdout", "AttachStderr",
+            "Tty", "OpenStdin", "StdinOnce", "Env", "Cmd", "Volumes", "WorkingDir", "Entrypoint",
+            "OnBuild", "Labels", "StopSignal", "StopTimeout", "Shell", "Healthcheck", "ExposedPorts",
+        ) if key in config and config[key] is not None}
+        spec["Image"] = image
+        spec["HostConfig"] = {key: host_config[key] for key in (
+            "Binds", "Links", "RestartPolicy", "AutoRemove", "NetworkMode", "PortBindings", "Devices",
+            "CapAdd", "CapDrop", "Dns", "DnsOptions", "DnsSearch", "ExtraHosts", "Privileged",
+            "ReadonlyRootfs", "SecurityOpt", "Tmpfs", "ShmSize", "PidMode", "IpcMode", "UTSMode", "LogConfig",
+        ) if key in host_config and host_config[key] is not None}
+        spec["NetworkingConfig"] = {"EndpointsConfig": {
+            network: {key: settings[key] for key in ("Aliases", "Links", "IPAMConfig") if key in settings and settings[key] is not None}
+            for network, settings in networks.items()
+        }}
+
+        self.docker.rename(container_name, replacement_name)
+        try:
+            self.docker.create_container(container_name, spec)
+            self.docker.start(container_name)
+        except Exception:
+            try:
+                self.docker.rename(replacement_name, container_name)
+            except Exception:
+                pass
+            raise
+        self.docker.remove(replacement_name)
+        return {"action": "update-manager", "status": "recreated", "image": image}
+
     def stack_action(self, action: str) -> dict[str, Any]:
         if action not in {"start", "stop", "restart"}:
             raise ValueError("Nicht erlaubte Stack-Aktion")
@@ -454,6 +502,11 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Reinstall muss bestaetigt werden")
                 self._send(HTTPStatus.OK, self.manager.reinstall_stack())
                 return
+            if self.path == "/api/manager/update":
+                if payload.get("confirm") is not True:
+                    raise ValueError("Manager-Update muss bestaetigt werden")
+                self._send(HTTPStatus.OK, self.manager.update_manager())
+                return
             if self.path.startswith("/api/stack/"):
                 action = self.path[len("/api/stack/"):]
                 if action == "update":
@@ -545,10 +598,10 @@ INDEX_HTML = """<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bocki Grafana AIO</title><style>
  :root{font-family:ui-sans-serif,system-ui,sans-serif;color:#17212b;background:#eef1ed}body{max-width:980px;margin:0 auto;padding:28px}header{border-bottom:1px solid #c9d1c8;margin-bottom:14px}h1{font-size:2rem;margin:0 0 8px;color:#174a4a}section{background:#fff;border:1px solid #d5ddd4;border-radius:8px;padding:20px;margin:14px 0;box-shadow:0 3px 12px #173b3b12}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}label{display:grid;gap:6px;font-size:.9rem}input{padding:10px;border:1px solid #bdc8be;border-radius:5px;font:inherit}button{background:#d85b35;color:#fff;border:0;border-radius:5px;padding:10px 14px;font:inherit;cursor:pointer}button:hover{background:#b94727}button:disabled{opacity:.5;cursor:progress}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 8px;border-top:1px solid #e2e7e1}th{color:#607067;font-weight:600;font-size:.85rem}.muted{color:#607067}#message{min-height:1.5em}.badge{padding:3px 10px;border-radius:12px;font-size:.8rem;background:#e2e7e1;white-space:nowrap}.status-ok{background:#dff3e0;color:#1f7a35}.status-warn{background:#fdf1d8;color:#9a6b06}.status-bad{background:#fbdede;color:#a3272c}.actions button{margin:2px;padding:6px 10px;font-size:.78rem}.main-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.main-nav button{background:#fff;color:#174a4a;border:1px solid #bdc8be}.main-nav button.active{background:#174a4a;color:#fff;border-color:#174a4a}.view-section{display:none}.view-section.active{display:block}#central-log{position:sticky;bottom:12px;z-index:2}#live-log{background:#101a1a;color:#d7e6df;border-radius:6px;padding:10px;max-height:180px;overflow:auto;font-size:.78rem;white-space:pre-wrap}#progress{font-size:.9rem;font-weight:600;color:#174a4a}dialog#logs-modal{width:min(720px,90vw);border:1px solid #d5ddd4;border-radius:8px;padding:16px}#logs-content{white-space:pre-wrap;max-height:60vh;overflow:auto;background:#101a1a;color:#d7e6df;padding:12px;border-radius:6px;font-size:.78rem}</style></head>
-<body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Manager-Updates werden in Unraid über <strong>Force Update</strong> am Container eingespielt.</p></header>
+<body><header><h1>Bocki Grafana AIO</h1><p class="muted">Einrichtung und Status der Monitoring-Dienste</p><p class="muted">Der Manager kann sein Image selbst aktualisieren und mit der vorhandenen Container-Konfiguration neu starten.</p></header>
 <nav class="main-nav" aria-label="Hauptnavigation"><button class="active" data-view="setup-view" type="button">Ersteinrichtung</button><button data-view="services-view" type="button">Dienste</button><button data-view="telegraf-view" type="button">Telegraf</button></nav>
 <section id="setup-view" class="view-section active"><h2>Ersteinrichtung</h2><form id="setup"><div class="grid"><label>Server-IP oder Hostname<input name="public_host" placeholder="z.B. 192.168.8.111"></label><label>Grafana Benutzer<input name="grafana_admin_user" value="admin"></label><label>Grafana Passwort<input name="grafana_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>InfluxDB Passwort<input name="influx_admin_password" type="password" placeholder="Leer lassen = unveraendert"></label><label>Organisation<input name="organization" value="home"></label><label>Bucket<input name="bucket" value="homelab"></label><label>Retention<input name="retention" value="30d"></label><label>Uptime Kuma URL<input name="uptime_kuma_url" type="url" placeholder="http://uptime-kuma:3001"></label></div><p><button>Setup speichern</button></p></form><p id="message" class="muted"></p></section>
-<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button data-stack-action="start" type="button">Stack starten</button> <button data-stack-action="stop" type="button">Stack stoppen</button> <button data-stack-action="restart" type="button">Stack neu starten</button> <button data-stack-action="update" type="button">Stack aktualisieren</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
+<section id="services-view" class="view-section"><h2>Dienste</h2><p class="muted">Weboberflaechen und APIs sind ueber diesen Manager erreichbar:</p><p><button data-stack-action="start" type="button">Stack starten</button> <button data-stack-action="stop" type="button">Stack stoppen</button> <button data-stack-action="restart" type="button">Stack neu starten</button> <button data-stack-action="update" type="button">Stack aktualisieren</button> <button data-manager-action="update" type="button">Manager aktualisieren</button></p><table><thead><tr><th>Dienst</th><th>WebUI</th><th>IP / Port</th><th>Container</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="services"></tbody></table></section>
 <section id="telegraf-view" class="view-section"><h2>Telegraf-Konfiguration</h2><p class="muted">Die aktive Konfiguration wird vor dem Speichern gesichert und nach dem Speichern neu geladen.</p><textarea id="telegraf-config" rows="20" spellcheck="false" style="width:100%;box-sizing:border-box;font:12px monospace;padding:10px;border:1px solid #bdc8be;border-radius:5px"></textarea><p><button id="telegraf-load" type="button">Laden</button> <button id="telegraf-save" type="button">Speichern und neu starten</button></p></section>
 <section id="central-log"><h2>Zentrales Live-Log</h2><p id="progress">Bereit.</p><pre id="live-log">Noch keine Aktionen.</pre><p><button id="clear-log" type="button">Log leeren</button></p></section>
 <dialog id="logs-modal"><h3 id="logs-title"></h3><pre id="logs-content"></pre><p><button id="logs-close" type="button">Schliessen</button></p></dialog>
@@ -574,6 +627,7 @@ async function loadTelegraf(){setProgress('Telegraf-Konfiguration wird geladen..
 document.getElementById('telegraf-load').addEventListener('click',loadTelegraf);
 document.getElementById('telegraf-save').addEventListener('click',async()=>{const button=document.getElementById('telegraf-save');button.disabled=true;setProgress('Telegraf-Konfiguration wird gespeichert...');const response=await fetch('/api/config/telegraf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:document.getElementById('telegraf-config').value})});const data=await response.json();button.disabled=false;if(data.error){setProgress('Telegraf-Speichern fehlgeschlagen: '+data.error);document.getElementById('message').textContent=data.error;return}document.getElementById('message').textContent='Telegraf-Konfiguration gespeichert und Telegraf neu gestartet.';setProgress(document.getElementById('message').textContent)});loadTelegraf();
 document.querySelector('[data-stack-action="start"]').parentElement.addEventListener('click',async event=>{const button=event.target.closest('[data-stack-action]');if(!button)return;const action=button.dataset.stackAction;const update=action==='update';if((action==='stop'||action==='restart'||update)&&!confirm(update?'Alle fuenf Fachcontainer werden aktualisiert und neu erstellt. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?':`Alle fuenf Fachcontainer werden ${action==='stop'?'gestoppt':'neu gestartet'}. Fortfahren?`))return;button.disabled=true;setProgress(`Stack: ${action} gestartet...`);const response=await fetch(`/api/stack/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(update?{confirm:true}:{})});const data=await response.json();button.disabled=false;const message=data.error||`Stack: ${action} abgeschlossen.`;document.getElementById('message').textContent=message;setProgress(message);state()});
+document.querySelector('[data-manager-action="update"]').addEventListener('click',async event=>{const button=event.currentTarget;if(!confirm('Der Manager wird aktualisiert und kurz neu gestartet. Persistent gespeicherte Daten bleiben erhalten. Fortfahren?'))return;button.disabled=true;setProgress('Manager-Update wird vorbereitet...');try{const response=await fetch('/api/manager/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});const data=await response.json();if(data.error){throw new Error(data.error)}setProgress(data.status==='already-current'?'Manager ist bereits aktuell.':'Manager wurde neu erstellt; Seite wird neu geladen.');if(data.status==='recreated')setTimeout(()=>location.reload(),3000)}catch(error){button.disabled=false;setProgress(`Manager-Update fehlgeschlagen: ${error.message}`)}});
 document.getElementById('setup').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target));setProgress('Konfiguration wird gespeichert...');const response=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(data.error){document.getElementById('message').textContent=data.error;setProgress(`Setup fehlgeschlagen: ${data.error}`);return}document.getElementById('message').textContent='Konfiguration erfolgreich gespeichert.';setProgress('Konfiguration gespeichert; Containerstatus wird geprueft...');const fieldLabels={public_host:'Server-IP/Hostname',organization:'Organisation',bucket:'Bucket',retention:'Retention',grafana_admin_user:'Grafana Benutzer',grafana_admin_password:'Grafana Passwort',influx_admin_password:'InfluxDB Passwort'};(data.changed_fields||[]).forEach(field=>{logEvent(`Geaendert: ${fieldLabels[field]||field}`)});if(data.grafana_password_synced===true){logEvent('Grafana-Passwort wurde im laufenden Container sofort aktualisiert.')}else if(data.grafana_password_synced===false){logEvent('Grafana-Passwort konnte nicht sofort gesetzt werden (Container laeuft evtl. noch nicht).')}if(data.influx_password_synced===true){logEvent('InfluxDB-Passwort wurde im laufenden Container sofort aktualisiert.')}else if(data.influx_password_synced===false){logEvent('InfluxDB-Passwort konnte nicht sofort gesetzt werden (Container laeuft evtl. noch nicht).')}const install=await fetch('/api/install',{method:'POST'});const result=await install.json();if(result.error){document.getElementById('message').textContent=result.error;setProgress(`Installation fehlgeschlagen: ${result.error}`)}else{document.getElementById('message').textContent=`Konfiguration gespeichert; ${result.created.length} neue Dienste erstellt.`;setProgress(`Installation abgeschlossen: ${result.created.length} neue Dienste erstellt`)}state()});setInterval(state,5000);state();
 </script></body></html>"""
 
