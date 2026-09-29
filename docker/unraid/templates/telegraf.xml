@@ -15,6 +15,7 @@
   <TemplateURL/>
   <Icon>https://raw.githubusercontent.com/influxdata/telegraf/master/assets/TelegrafTigerSmall.png</Icon>
   <ExtraParams>--cap-add=SYS_RAWIO</ExtraParams>
+  <User>root</User>
   <PostArgs>--config /etc/telegraf/telegraf.conf</PostArgs>
   <CPUset/>
   <DateInstalled/>
@@ -25,6 +26,8 @@
   <Config Name="Telegraf Config" Target="/etc/telegraf/telegraf.conf" Default="/mnt/user/appdata/bockis-grafana-stack/telegraf/unraid/telegraf.conf" Mode="ro" Description="Pfad zur Telegraf Config" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bockis-grafana-stack/telegraf/unraid/telegraf.conf</Config>
   <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Docker Socket fuer Container-Metriken" Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
   <Config Name="Hardware Devices" Target="/dev" Default="/dev" Mode="ro" Description="Hardwarezugriff fuer CPU-Sensoren und SMART-Temperaturen" Type="Path" Display="advanced" Required="true" Mask="false">/dev</Config>
+  <Config Name="Host Sysfs" Target="/sys" Default="/sys" Mode="ro" Description="Host-Sensoren und Temperaturdaten" Type="Path" Display="advanced" Required="true" Mask="false">/sys</Config>
+  <Config Name="Host Mounts" Target="/mnt" Default="/mnt" Mode="ro" Description="Unraid-Mounts fuer Disk-Metriken" Type="Path" Display="advanced" Required="true" Mask="false">/mnt</Config>
   <Config Name="GeoIP Datenbank" Target="/etc/telegraf/geoip/GeoLite2-City.mmdb" Default="/mnt/user/appdata/bockis-grafana-stack/geoip/GeoLite2-City.mmdb" Mode="ro" Description="GeoIP MMDB fuer Weltkarte" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/user/appdata/bockis-grafana-stack/geoip/GeoLite2-City.mmdb</Config>
 
   <Config Name="Syslog UDP Port" Target="5514" Default="5514" Mode="udp" Description="Syslog UDP Listener fuer OPNsense" Type="Port" Display="advanced" Required="false" Mask="false">5514</Config>

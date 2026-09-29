@@ -208,6 +208,7 @@ def telegraf_config(config: dict[str, Any]) -> str:
     return f'''[agent]
     interval = "10s"
     round_interval = true
+    flush_jitter = "2s"
     hostname = "bocki-aio"
 
 [[outputs.influxdb_v2]]
@@ -229,6 +230,7 @@ def telegraf_config(config: dict[str, Any]) -> str:
 [[inputs.processes]]
 [[inputs.temp]]
 [[inputs.smart]]
+    interval = "60s"
     path_smartctl = "/usr/sbin/smartctl"
     attributes = true
     devices = ["/dev/sdb -d sat", "/dev/sdc -d sat", "/dev/sdd -d sat", "/dev/sde -d sat", "/dev/sdf -d sat", "/dev/nvme0 -d nvme"]

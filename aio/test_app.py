@@ -369,6 +369,8 @@ class ManagerTests(unittest.TestCase):
             self.assertIn("[[inputs.diskio]]", telegraf_conf)
             self.assertIn("[[inputs.processes]]", telegraf_conf)
             self.assertIn("total = true", telegraf_conf)
+            self.assertIn('interval = "60s"', telegraf_conf)
+            self.assertIn('flush_jitter = "2s"', telegraf_conf)
             self.assertIn("[[inputs.temp]]", telegraf_conf)
             self.assertIn("[[inputs.smart]]", telegraf_conf)
             self.assertIn('/dev/sdb -d sat', telegraf_conf)
