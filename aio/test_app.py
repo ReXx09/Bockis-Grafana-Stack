@@ -411,20 +411,20 @@ class ManagerTests(unittest.TestCase):
             unified_dashboard = root / "data" / "generated" / "bocki-all-in-one-v2.json"
             unified_payload = json.loads(unified_dashboard.read_text(encoding="utf-8"))
             self.assertEqual(unified_payload["uid"], "bocki-all-in-one-v2")
-            self.assertEqual([panel["title"] for panel in unified_payload["panels"] if panel["type"] == "row"], ["Uebersicht", "System und Temperaturen", "Speicher und SMART", "Netzwerk", "OPNsense", "Firewall"])
+            self.assertEqual([panel["title"] for panel in unified_payload["panels"] if panel["type"] == "row"], ["Status", "Server Hardware", "Array und SMART", "Netzwerk", "Firewall", "Docker"])
             self.assertGreater(sum(panel["type"] != "row" for panel in unified_payload["panels"]), 0)
             self.assertIn("count_over_time", json.dumps(unified_payload))
             self.assertIn('r.cpu != \\"cpu-total\\"', json.dumps(unified_payload))
-            network_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"Download", "Upload"}}
-            self.assertEqual(set(network_panels), {"Download", "Upload"})
+            network_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"DOWNLOAD", "UPLOAD"}}
+            self.assertEqual(set(network_panels), {"DOWNLOAD", "UPLOAD"})
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "Mbits" for panel in network_panels.values()))
             self.assertTrue(all("/ 1000000.0" in panel["targets"][0]["query"] for panel in network_panels.values()))
-            resource_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"CPU-Auslastung", "Speicherauslastung"}}
-            self.assertEqual(set(resource_panels), {"CPU-Auslastung", "Speicherauslastung"})
+            resource_panels = {panel["title"]: panel for panel in unified_payload["panels"] if panel.get("title") in {"CPU LAST", "RAM"}}
+            self.assertEqual(set(resource_panels), {"CPU LAST", "RAM"})
             self.assertTrue(all(panel["type"] == "bargauge" and panel["options"]["orientation"] == "vertical" for panel in resource_panels.values()))
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "percent" and panel["fieldConfig"]["defaults"]["max"] == 100 for panel in resource_panels.values()))
             self.assertIn('r._measurement == \\"system\\" and r._field == \\"uptime\\"', json.dumps(unified_payload))
-            uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
+            uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "UPTIME"]
             self.assertTrue(uptime_panels)
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "dtdurations" for panel in uptime_panels))
             self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one-v2", "bocki-unraid-v2", "bocki-raspberry", "bocki-opnsense-v2"})
