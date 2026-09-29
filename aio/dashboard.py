@@ -108,7 +108,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
 def dashboard_switch_links() -> list[dict[str, Any]]:
     dashboards = [
         ("Bocki Gesamtuebersicht", "bocki-all-in-one"),
-        ("Unraid", "bocki-unraid"),
+        ("Unraid", "bocki-unraid-v2"),
         ("Raspberry", "bocki-raspberry"),
         ("OPNsense", "bocki-opnsense"),
     ]
