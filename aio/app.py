@@ -314,6 +314,7 @@ class Manager:
             for network, settings in networks.items()
         }}
 
+        self.docker.action(container_name, "stop")
         self.docker.rename(container_name, replacement_name)
         try:
             self.docker.create_container(container_name, spec)
@@ -321,6 +322,7 @@ class Manager:
         except Exception:
             try:
                 self.docker.rename(replacement_name, container_name)
+                self.docker.start(container_name)
             except Exception:
                 pass
             raise

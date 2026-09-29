@@ -150,6 +150,7 @@ class ManagerTests(unittest.TestCase):
             result = manager.update_manager()
 
             self.assertEqual(result["status"], "recreated")
+            self.assertLess(docker.calls.index(("bocki-grafana-aio", "stop")), docker.calls.index(("rename", "bocki-grafana-aio", "bocki-grafana-aio-old")))
             self.assertLess(docker.calls.index(("pull", "ghcr.io/rexx09/bockis-grafana-aio:latest")), docker.calls.index(("rename", "bocki-grafana-aio", "bocki-grafana-aio-old")))
             self.assertLess(docker.calls.index(("rename", "bocki-grafana-aio", "bocki-grafana-aio-old")), docker.calls.index(("start", "bocki-grafana-aio")))
             self.assertEqual(docker.calls[-1], ("remove", "bocki-grafana-aio-old"))
