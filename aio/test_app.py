@@ -381,7 +381,7 @@ class ManagerTests(unittest.TestCase):
             self.assertTrue((root / "data" / "generated" / "telegraf.conf").exists())
             dashboard_provider = (root / "data" / "generated" / "grafana-dashboards.yml").read_text(encoding="utf-8")
             self.assertIn("allowUiUpdates: true", dashboard_provider)
-            self.assertIn("disableDeletion: true", dashboard_provider)
+            self.assertIn("disableDeletion: false", dashboard_provider)
             self.assertIn("updateIntervalSeconds: 0", dashboard_provider)
             specs = [call[2] for call in docker.calls if call[0] == "create"]
             telegraf_spec = next(spec for spec in specs if spec["Image"] == "ghcr.io/rexx09/bockis-telegraf:1.34-smart")
