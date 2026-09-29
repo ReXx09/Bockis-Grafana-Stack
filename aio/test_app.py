@@ -408,10 +408,10 @@ class ManagerTests(unittest.TestCase):
             system_payload = json.loads(system_dashboard.read_text(encoding="utf-8"))
             self.assertEqual(system_payload["uid"], "bocki-system-metrics")
             self.assertIn('from(bucket: "homelab")', system_payload["panels"][0]["targets"][0]["query"])
-            unified_dashboard = root / "data" / "generated" / "bocki-all-in-one-v1.json"
+            unified_dashboard = root / "data" / "generated" / "bocki-all-in-one-v2.json"
             unified_payload = json.loads(unified_dashboard.read_text(encoding="utf-8"))
-            self.assertEqual(unified_payload["uid"], "bocki-all-in-one")
-            self.assertEqual([panel["title"] for panel in unified_payload["panels"] if panel["type"] == "row"], ["Uebersicht", "System", "Docker", "Netzwerk", "OPNsense", "Firewall"])
+            self.assertEqual(unified_payload["uid"], "bocki-all-in-one-v2")
+            self.assertEqual([panel["title"] for panel in unified_payload["panels"] if panel["type"] == "row"], ["Uebersicht", "System und Temperaturen", "Speicher und SMART", "Netzwerk", "OPNsense", "Firewall"])
             self.assertGreater(sum(panel["type"] != "row" for panel in unified_payload["panels"]), 0)
             self.assertIn("count_over_time", json.dumps(unified_payload))
             self.assertIn('r.cpu != \\"cpu-total\\"', json.dumps(unified_payload))
@@ -427,7 +427,7 @@ class ManagerTests(unittest.TestCase):
             uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
             self.assertTrue(uptime_panels)
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "dtdurations" for panel in uptime_panels))
-            self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one", "bocki-unraid-v2", "bocki-raspberry", "bocki-opnsense"})
+            self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one-v2", "bocki-unraid-v2", "bocki-raspberry", "bocki-opnsense"})
             for filename, uid, host_filter in (
                 ("bocki-unraid-v2.json", "bocki-unraid-v2", 'r.host == "bocki-aio"'),
                 ("bocki-raspberry-v1.json", "bocki-raspberry", "r.host =~ /^raspi/"),

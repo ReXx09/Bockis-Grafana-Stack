@@ -107,7 +107,7 @@ def host_dashboard_json(bucket: str, uid: str, title: str, host_filter: str, inc
 
 def dashboard_switch_links() -> list[dict[str, Any]]:
     dashboards = [
-        ("Bocki Gesamtuebersicht", "bocki-all-in-one"),
+        ("Bocki Gesamtuebersicht", "bocki-all-in-one-v2"),
         ("Unraid", "bocki-unraid-v2"),
         ("Raspberry", "bocki-raspberry"),
         ("OPNsense", "bocki-opnsense"),
@@ -126,28 +126,30 @@ def dashboard_switch_links() -> list[dict[str, Any]]:
     ]]
 
 
-def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False) -> str:
+def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False, uid: str = "bocki-all-in-one", title: str = "Bocki Gesamtuebersicht") -> str:
+    unraid_host = 'r.host == "bocki-aio"'
     sections = [
         dashboard_section(1, "Uebersicht", [
-            percentage_gauge_panel(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
-            percentage_gauge_panel(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent"),
-            system_stat(103, "Laufende Container", 12, 0, bucket, "docker", "n_containers_running"),
+            percentage_gauge_panel(101, "CPU-Auslastung", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', unraid_host),
+            percentage_gauge_panel(102, "Speicherauslastung", 6, 0, bucket, "mem", "used_percent", host_filter=unraid_host),
+            system_stat(103, "Laufende Container", 12, 0, bucket, "docker", "n_containers_running", host_filter=unraid_host),
             loki_stat(104, "Geblockte Firewall-Ereignisse", "action=\"block\"", "red"),
         ]),
-        dashboard_section(2, "System", [
-            system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
-            system_timeseries(202, "Speicherauslastung (%)", 12, 0, bucket, "mem", "used_percent"),
-            system_timeseries(203, "Festplattenbelegung (%)", 0, 8, bucket, "disk", "used_percent", group_by="path"),
-            system_timeseries(204, "CPU-Kerne (%)", 12, 8, bucket, "cpu", "usage_active", 'r.cpu != "cpu-total"', group_by="cpu"),
-            system_stat(205, "Uptime", 0, 16, bucket, "system", "uptime"),
+        dashboard_section(2, "System und Temperaturen", [
+            system_timeseries(201, "CPU-Auslastung (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"', host_filter=unraid_host),
+            cpu_core_usage_panel(204, "CPU-Kerne (%)", 12, 0, bucket, unraid_host),
+            cpu_core_temperature_panel(205, "CPU-Kern-Temperaturen", 0, 10, bucket, unraid_host),
+            system_timeseries(202, "Speicherauslastung (%)", 12, 10, bucket, "mem", "used_percent", host_filter=unraid_host),
+            system_stat(203, "Uptime", 0, 20, bucket, "system", "uptime", host_filter=unraid_host),
         ]),
-        dashboard_section(3, "Docker", [
-            system_timeseries(301, "Container CPU (%)", 0, 0, bucket, "docker_container_cpu", "usage_percent", group_by="container_name"),
-            system_table(302, "Container-Ressourcen", 12, 0, bucket, "docker_container_mem", "usage", group_by="container_name"),
+        dashboard_section(3, "Speicher und SMART", [
+            system_timeseries(301, "Festplattenbelegung (%)", 0, 0, bucket, "disk", "used_percent", group_by="path", host_filter=unraid_host),
+            smart_temperature_panel(302, "Festplatten-Temperatur", 12, 0, bucket, unraid_host),
+            system_table(303, "Docker-Ressourcen", 0, 10, bucket, "docker_container_mem", "usage", group_by="container_name", host_filter=unraid_host),
         ]),
         dashboard_section(4, "Netzwerk", [
-            network_rate_panel(401, "Download", 0, 0, bucket, "bytes_recv"),
-            network_rate_panel(402, "Upload", 12, 0, bucket, "bytes_sent"),
+            network_rate_panel(401, "Download", 0, 0, bucket, "bytes_recv", unraid_host),
+            network_rate_panel(402, "Upload", 12, 0, bucket, "bytes_sent", unraid_host),
         ]),
         dashboard_section(5, "OPNsense", [
             system_timeseries(501, "Firewall CPU (%)", 0, 0, bucket, "cpu", "usage_active", 'r.cpu == "cpu-total"'),
@@ -163,8 +165,8 @@ def unified_dashboard_json(bucket: str, include_uptime_kuma: bool = False) -> st
         sections.append(uptime_kuma_section(bucket))
     panels = flatten_dashboard_sections(sections)
     dashboard = {
-        "uid": "bocki-all-in-one",
-        "title": "Bocki Gesamtuebersicht",
+        "uid": uid,
+        "title": title,
         "tags": ["bocki", "overview", "system", "firewall"],
         "timezone": "browser",
         "schemaVersion": 39,
