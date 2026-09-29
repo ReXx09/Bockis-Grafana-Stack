@@ -427,11 +427,11 @@ class ManagerTests(unittest.TestCase):
             uptime_panels = [panel for panel in unified_payload["panels"] if panel.get("title") == "Uptime"]
             self.assertTrue(uptime_panels)
             self.assertTrue(all(panel["fieldConfig"]["defaults"]["unit"] == "dtdurations" for panel in uptime_panels))
-            self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one-v2", "bocki-unraid-v2", "bocki-raspberry", "bocki-opnsense"})
+            self.assertEqual({link["uid"] for link in unified_payload["links"] if link.get("type") == "dashboard"}, {"bocki-all-in-one-v2", "bocki-unraid-v2", "bocki-raspberry", "bocki-opnsense-v2"})
             for filename, uid, host_filter in (
                 ("bocki-unraid-v2.json", "bocki-unraid-v2", 'r.host == "bocki-aio"'),
                 ("bocki-raspberry-v1.json", "bocki-raspberry", "r.host =~ /^raspi/"),
-                ("bocki-opnsense-v1.json", "bocki-opnsense", 'r.host == "opnsense"'),
+                ("bocki-opnsense-v2.json", "bocki-opnsense-v2", 'r.host == "opnsense"'),
             ):
                 payload = json.loads((root / "data" / "generated" / filename).read_text(encoding="utf-8"))
                 self.assertEqual(payload["uid"], uid)
@@ -440,6 +440,10 @@ class ManagerTests(unittest.TestCase):
                     smart_panels = [panel for panel in payload["panels"] if panel.get("title") == "Festplatten-Temperatur"]
                     self.assertEqual(len(smart_panels), 1)
                     self.assertEqual(smart_panels[0]["type"], "bargauge")
+                    opnsense_payload = json.loads((root / "data" / "generated" / "bocki-opnsense-v2.json").read_text(encoding="utf-8"))
+                    self.assertEqual(opnsense_payload["uid"], "bocki-opnsense-v2")
+                    self.assertIn("Firewall-Ereignisse", {panel.get("title") for panel in opnsense_payload["panels"]})
+                    self.assertIn("CPU-Auslastung", {panel.get("title") for panel in opnsense_payload["panels"]})
                     self.assertEqual(smart_panels[0]["options"]["orientation"], "horizontal")
                     self.assertIn("|> last()", smart_panels[0]["targets"][0]["query"])
                     core_panels = [panel for panel in payload["panels"] if panel.get("title") == "CPU-Kern-Temperaturen"]

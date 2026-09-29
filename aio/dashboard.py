@@ -110,7 +110,7 @@ def dashboard_switch_links() -> list[dict[str, Any]]:
         ("Bocki Gesamtuebersicht", "bocki-all-in-one-v2"),
         ("Unraid", "bocki-unraid-v2"),
         ("Raspberry", "bocki-raspberry"),
-        ("OPNsense", "bocki-opnsense"),
+        ("OPNsense", "bocki-opnsense-v2"),
     ]
     return [{
         "asDropdown": True,

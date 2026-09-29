@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from .dashboard import dashboard_json, host_dashboard_json, system_dashboard_json, unified_dashboard_json
+from .dashboards.opnsense import dashboard as opnsense_dashboard
+from .dashboards.overview import dashboard as overview_dashboard
+from .dashboards.raspberry import dashboard as raspberry_dashboard
+from .dashboards.unraid import dashboard as unraid_dashboard
 from .services import SERVICE_DEFINITIONS
 
 NETWORK_NAME = "bocki-monitoring"
@@ -53,10 +57,10 @@ class StackOrchestrator:
             "opnsense-firewall-v1.json": dashboard_json(),
             "system-metrics-v1.json": system_dashboard_json(config["bucket"]),
             "bocki-all-in-one-v1.json": unified_dashboard_json(config["bucket"], bool(config.get("uptime_kuma_url"))),
-            "bocki-all-in-one-v2.json": unified_dashboard_json(config["bucket"], bool(config.get("uptime_kuma_url")), uid="bocki-all-in-one-v2", title="Bocki Gesamtuebersicht"),
-            "bocki-unraid-v2.json": host_dashboard_json(config["bucket"], "bocki-unraid-v2", "Bocki Unraid", 'r.host == "bocki-aio"', include_docker=True),
-            "bocki-raspberry-v1.json": host_dashboard_json(config["bucket"], "bocki-raspberry", "Bocki Raspberry", 'r.host =~ /^raspi/', include_temperature=True),
-            "bocki-opnsense-v1.json": host_dashboard_json(config["bucket"], "bocki-opnsense", "Bocki OPNsense", 'r.host == "opnsense"'),
+            "bocki-all-in-one-v2.json": overview_dashboard(config["bucket"], bool(config.get("uptime_kuma_url"))),
+            "bocki-unraid-v2.json": unraid_dashboard(config["bucket"]),
+            "bocki-raspberry-v1.json": raspberry_dashboard(config["bucket"]),
+            "bocki-opnsense-v2.json": opnsense_dashboard(config["bucket"]),
         }
         for name, content in files.items():
             for directory in (self.generated_dir, self.host_generated_dir):
@@ -128,12 +132,11 @@ class StackOrchestrator:
                 f"{host / 'grafana'}:/var/lib/grafana",
                 f"{self.host_generated_dir / 'grafana-datasource.yml'}:/etc/grafana/provisioning/datasources/datasource.yml:ro",
                 f"{self.host_generated_dir / 'grafana-dashboards.yml'}:/etc/grafana/provisioning/dashboards/dashboards.yml:ro",
-                f"{self.host_generated_dir / 'opnsense-firewall-v1.json'}:/var/lib/grafana/dashboards/opnsense-firewall-v1.json:ro",
                 f"{self.host_generated_dir / 'system-metrics-v1.json'}:/var/lib/grafana/dashboards/system-metrics-v1.json:ro",
                 f"{self.host_generated_dir / 'bocki-all-in-one-v2.json'}:/var/lib/grafana/dashboards/bocki-all-in-one-v2.json:ro",
                 f"{self.host_generated_dir / 'bocki-unraid-v2.json'}:/var/lib/grafana/dashboards/bocki-unraid-v2.json:ro",
                 f"{self.host_generated_dir / 'bocki-raspberry-v1.json'}:/var/lib/grafana/dashboards/bocki-raspberry-v1.json:ro",
-                f"{self.host_generated_dir / 'bocki-opnsense-v1.json'}:/var/lib/grafana/dashboards/bocki-opnsense-v1.json:ro",
+                f"{self.host_generated_dir / 'bocki-opnsense-v2.json'}:/var/lib/grafana/dashboards/bocki-opnsense-v2.json:ro",
             ]
             public_host = str(config.get("public_host", "")).strip()
             root_url = f"http://{public_host}:8800/grafana/" if public_host else "%(protocol)s://%(domain)s/grafana/"
