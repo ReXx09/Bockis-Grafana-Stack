@@ -309,6 +309,14 @@ class ManagerTests(unittest.TestCase):
             handler.headers = {}
             self.assertFalse(handler._authenticated())
 
+    def test_send_ignores_disconnected_client(self):
+        handler = Handler.__new__(Handler)
+        handler.send_response = Mock(side_effect=BrokenPipeError())
+
+        handler._send(200, {"status": "ok"})
+
+        handler.send_response.assert_called_once_with(200)
+
     def test_proxy_uses_managed_container_ip(self):
         with tempfile.TemporaryDirectory() as directory:
             socket_path = Path(directory) / "docker.sock"
