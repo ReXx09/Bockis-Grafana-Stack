@@ -52,7 +52,12 @@ class StackOrchestrator:
             "opnsense-firewall-v1.json": "bocki-opnsense-firewall",
             "bocki-all-in-one-v1.json": "bocki-all-in-one",
         }
-        for directory in (self.generated_dir, self.host_generated_dir):
+        dashboard_directories = (
+            self.generated_dir,
+            self.host_generated_dir,
+            self.host_data_dir / "grafana" / "dashboards",
+        )
+        for directory in dashboard_directories:
             for name, uid in legacy_dashboards.items():
                 target = directory / name
                 if not target.exists():

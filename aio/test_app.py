@@ -486,11 +486,17 @@ class ManagerTests(unittest.TestCase):
             manager.save_config({"grafana_admin_password": "grafana", "influx_admin_password": "influx", "host_data_dir": str(root / "host")})
 
             manager.install_stack()
+            persisted_dashboards = root / "host" / "grafana" / "dashboards"
+            persisted_dashboards.mkdir(parents=True)
+            (persisted_dashboards / "bocki-all-in-one-v1.json").write_text('{"uid":"bocki-all-in-one"}\n', encoding="utf-8")
+            (persisted_dashboards / "opnsense-firewall-v1.json").write_text('{"uid":"bocki-opnsense-firewall"}\n', encoding="utf-8")
             dashboard_path = root / "data" / "generated" / "bocki-all-in-one-v1.json"
             dashboard_path.write_text('{"title":"Meine UI-Anpassung"}\n', encoding="utf-8")
             manager.install_stack()
 
             self.assertEqual(dashboard_path.read_text(encoding="utf-8"), '{"title":"Meine UI-Anpassung"}\n')
+            self.assertFalse((persisted_dashboards / "bocki-all-in-one-v1.json").exists())
+            self.assertFalse((persisted_dashboards / "opnsense-firewall-v1.json").exists())
 
     def test_reprovision_keeps_existing_v2_dashboard_file(self):
         with tempfile.TemporaryDirectory() as directory:
