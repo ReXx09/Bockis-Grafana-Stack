@@ -68,6 +68,22 @@ class StackOrchestrator:
                     is_legacy = False
                 if is_legacy:
                     target.unlink()
+        for directory in dashboard_directories:
+            target = directory / "bocki-all-in-one-v2.json"
+            if not target.exists():
+                continue
+            try:
+                payload = json.loads(target.read_text(encoding="utf-8"))
+                row_titles = {
+                    panel.get("title")
+                    for panel in payload.get("panels", [])
+                    if panel.get("type") == "row"
+                }
+                is_old_overview = payload.get("uid") == "bocki-all-in-one-v2" and "Uebersicht" in row_titles
+            except (OSError, json.JSONDecodeError):
+                is_old_overview = False
+            if is_old_overview:
+                target.unlink()
         files = {
             "loki-config.yml": LOKI_CONFIG,
             "alloy-config.alloy": ALLOY_CONFIG,
