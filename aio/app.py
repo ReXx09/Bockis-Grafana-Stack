@@ -163,6 +163,7 @@ class Manager:
         if not self.config.get("configured"):
             raise ValueError("Bitte zuerst das Setup speichern")
         backup_dir = self.backup_grafana_dashboards(include_config=True)
+        removed_dashboards = self.remove_legacy_grafana_dashboards()
         host_data_dir = Path(self.config.get("host_data_dir", os.getenv("AIO_HOST_DATA_DIR", "/mnt/user/appdata/bocki-grafana-aio")))
         try:
             recreated = StackOrchestrator(self.data_dir, host_data_dir, self.docker).reinstall(self.config)
@@ -172,7 +173,32 @@ class Manager:
             raise
         self.config.pop("last_error", None)
         self.config_path.write_text(json.dumps(self.config, indent=2) + "\n", encoding="utf-8")
-        return {"status": "reinstalled", "recreated": recreated, "backup": str(backup_dir)}
+        return {"status": "reinstalled", "recreated": recreated, "backup": str(backup_dir), "removed_dashboards": removed_dashboards}
+
+    def remove_legacy_grafana_dashboards(self) -> list[str]:
+        if not self.docker.container_exists("bocki-aio-grafana"):
+            return []
+        target = self.proxy_target("/grafana/api")
+        if not target:
+            return []
+        hostname, port, _ = target
+        username = str(self.config.get("grafana_admin_user", "admin"))
+        password = str(self.config.get("grafana_admin_password", ""))
+        credentials = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+        removed = []
+        connection = http.client.HTTPConnection(hostname, port, timeout=5)
+        try:
+            for uid in ("bocki-all-in-one", "bocki-opnsense-firewall"):
+                connection.request("DELETE", f"/grafana/api/dashboards/uid/{uid}", headers={"Authorization": f"Basic {credentials}"})
+                response = connection.getresponse()
+                response.read()
+                if response.status in {HTTPStatus.OK, HTTPStatus.NOT_FOUND}:
+                    removed.append(uid)
+        except (OSError, http.client.HTTPException):
+            return removed
+        finally:
+            connection.close()
+        return removed
 
     def backup_grafana_dashboards(self, include_config: bool = False) -> Path:
         backup_dir = self.data_dir / "backups" / secrets.token_hex(6)
